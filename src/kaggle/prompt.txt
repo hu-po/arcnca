@@ -50,11 +50,16 @@ A "grid" is a rectangular matrix (list of lists) of integers between 0 and 9 (in
 The data on this page should be used to develop and evaluate your models. When notebooks are submitted for rerun, they are scored using 100 unseen tasks found in the rerun file named arc-agi_test_challenges.json. The rerun tasks will contain train pairs of inputs and outputs as well as the tasks test input. Your algorithm must predict the test output. The majority of the 100 tasks used for leaderboard score only have one test input that will require a corresponding output prediction, although for a small number of tasks, you will be asked to make predictions for two test inputs.
 <https://www.kaggle.com/competitions/arc-prize-2024/data>
 
+<information on cax>
+CAX introduces a unifying framework for all cellular automata types, encompassing discrete, continuous, and neural models across any number of dimensions (Table 1). This flexible architecture is built upon two key components: the perceive module and the update module. Together, these modules define the local rule of the CA. At each time step, this local rule is applied uniformly to all cells in the grid, generating the next global state of the system, as explained in Section 2.1. This modular approach not only provides a clear separation of concerns but also facilitates easy experimentation and extension of existing CA models.
+A cellular automaton is a simple model of computation consisting of a regular grid of cells, each in a particular state. The grid can be in any finite number of dimensions. For each cell, a set of cells called its neighborhood is defined relative to the specified cell. The grid is updated at discrete time steps according to a fixed rule that determines the new state of each cell based on its current state and the states of the cells in its neighborhood.
+A controllable cellular automaton (CCA) is a generalization of CA that incorporates the ability to accept external inputs at each time step. CCAs formalize the concept of Goal-Guided NCA that has been introduced in the literature by Sudhakaran et al. (2022). The external inputs can modify the behavior of CCAs, offering the possibility to respond dynamically to changing conditions or control signals while maintaining the fundamental principles of cellular automata.
+<information on cax>
+
 <submission>
 
 <submission>
 
 <submission output>
-
 
 <submission output>
