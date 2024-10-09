@@ -7,45 +7,25 @@ gcr.io/kaggle-gpu-images/python \
 bash -c "nvidia-smi && python3 -c 'import jax; print(jax.devices())'"
 ```
 
-clone repo
+run cax tests inside container
 
 ```bash
+docker run --gpus all -it --rm \
+gcr.io/kaggle-gpu-images/python \
+bash
+pip install pytest
 git clone https://github.com/hu-po/cax.git
-cd cax
-```
-
-test library on raw local
-
-```bash
-conda create -n cax python=3.10
-conda activate cax
-pip install -e '.[dev]'
 pytest
 ```
 
-test base container
+run arc 1d test for oop in container (connect to http://localhost:8888 in vscode/browser)
 
 ```bash
 docker run --gpus all -it --rm \
-nvcr.io/nvidia/jax:24.04-py3 \
-bash -c "nvidia-smi && python3 -c 'import jax; print(jax.devices())'"
-```
-
-run library tests in container
-
-```bash
-docker run --gpus all -it --rm \
--v ~/dev/cax:/cax \
-nvcr.io/nvidia/jax:24.04-py3 \
-bash -c /cax/examples/arc-2024/test.lib.oop.sh
-```
-
-run arc 1d test for oop in container
-
-```bash
-docker run --gpus all -it --rm \
--v ~/dev/cax:/cax \
 -p 8888:8888 \
+-e WANDB_API_KEY=$WANDB_API_KEY \
 nvcr.io/nvidia/jax:24.04-py3 \
-bash -c /cax/examples/arc-2024/test.1d-arc.oop.sh
+bash -c "pip install jupyter cax && jupyter notebook --ip=0.0.0.0 --port=8888 --allow-root --no-browser"
 ```
+
+this faults on `nnx` in cell 3
