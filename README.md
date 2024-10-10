@@ -14,3 +14,10 @@ various types of compute were used
 - `oop` - a local linux pc with nvidia 3090
 - `big` - a cloud instance with 1xH100
 - `kag` - a cloud kaggle nb with 4xT4
+
+to run the test on a machine, ssh into it:
+
+```bash
+git clone https://github.com/hu-po/arcnca
+./scripts/test.big.sh
+```
