@@ -1,9 +1,9 @@
 tests
 
 ```bash
-docker run --gpus all -it --rm \
--v /home/oop/dev/arcnca/src/oop:/arcnca \
+jetson-containers run \
+-v /home/ojo/dev/arcnca/src/ojo:/arcnca \
 -e WANDB_API_KEY=$WANDB_API_KEY \
-nvcr.io/nvidia/jax:24.04-py3 \
+$(autotag jax) \
 bash -c "pip install jupyter && jupyter nbconvert --to notebook --execute /arcnca/main.ipynb --stdout | tee /arcnca/logs/output.log"
 ```
