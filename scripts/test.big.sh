@@ -1,4 +1,4 @@
-docker run --gpus all -it --rm \
+sudo docker run --gpus all -it --rm \
 -v /home/ubuntu/arcnca:/arcnca \
 -v /home/ubuntu/arcnca/data:/kaggle/input/arc-prize-2024 \
 -v /home/ubuntu/arcnca/output:/kaggle/working \
