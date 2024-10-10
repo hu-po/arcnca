@@ -21,3 +21,5 @@ to run the test on a machine, ssh into it:
 git clone https://github.com/hu-po/arcnca
 ./scripts/test.big.sh
 ```
+
+for kaggle you need to "create a notebook" from the ["code" page](https://www.kaggle.com/competitions/arc-prize-2024/code) and paste in the contents of `test.ipynb` then click "save version" and make sure to disable internet. then go to the ["submit" page](https://www.kaggle.com/competitions/arc-prize-2024/submit) and hit "submit prediction".
