@@ -4,4 +4,4 @@ jetson-containers run \
 -v /home/$USER/dev/arcnca/output:/kaggle/working \
 -e WANDB_API_KEY=$WANDB_API_KEY \
 $(autotag jax) \
-bash -c "pip install jupyter && jupyter nbconvert --to notebook --execute /arcnca/test.ipynb --stdout"
+bash -c "pip install jupyter && jupyter nbconvert --to notebook --execute /arcnca/notebooks/test.ipynb --stdout"
