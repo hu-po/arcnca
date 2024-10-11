@@ -178,9 +178,11 @@ Do not explain return only the code.""",
                 with open(morph_output_filepath, "r") as f:
                     morph_output = yaml.safe_load(f)
                 morph_score = morph_output["test_accuracy"]
-            except
-            leaderboard[morph] = morph_leaderboard[morph]["test_accuracy"]
-        print(f"Player {morph} result {leaderboard[morph]}")
+            except Exception as e:
+                print(f"\t❌\t{e}")
+                morph_score = -2
+            leaderboard[morph] = morph_score
+        print(f"\t🏁\t{morph.name} scored {morph.score}")
 
     sorted_morphs = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
     print(f"Sorted morphs: {sorted_morphs}")
