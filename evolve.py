@@ -17,6 +17,8 @@ import time
 import uuid
 import yaml
 import datetime
+from dataclasses import dataclass
+from typing import List
 
 import matplotlib.pyplot as plt
 from io import BytesIO
@@ -24,37 +26,28 @@ from PIL import Image
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=0)
-parser.add_argument("--llm", type=str, default="gpt")
-parser.add_argument("--compute", type=str, default="oop") # one of oop, big, ojo
-# --- Evolution params
-parser.add_argument("--num_players", type=int, default=24)
-parser.add_argument("--num_rounds", type=int, default=32)
-parser.add_argument("--cull_ratio", type=int, default=4)
+parser.add_argument("--agent", type=str, default="gpt")
+parser.add_argument("--tb", type=bool, default=True, help="start tensorboard session")
+parser.add_argument("--protomorphs", type=str, help="comma separated list of protomorphs to seed evolution")
+parser.add_argument("--num_rounds", type=int, default=32, help="number of rounds to run")
+parser.add_argument("--num_morphs", type=int, default=4, help="number of morphs per round")
+parser.add_argument("--topk_morphs", type=int, default=2, help="number of top morphs to keep each round")
+parser.add_argument("--compute_backend", type=str, default="oop") # one of oop, big, ojo (unless you are hupo this means nothing)
 args = parser.parse_args()
 
-print("🧫🔬 Starting Evolution")
+print(f"🧫🔬\tseed\t{args.seed}")
 random.seed(args.seed)
-session_id = str(uuid.uuid4())[:6]
-base_dir = f"output/{session_id}{datetime.datetime.strftime('
-os.makedirs(base_dir, exist_ok=True)
-print(f"base directory at {base_dir}")
-player_dir = os.path.join(base_dir, "players")
-os.makedirs(player_dir, exist_ok=True)
-print(f"player directory at {player_dir}")
-logs_dir = os.path.join(base_dir, "logs")
-os.makedirs(logs_dir, exist_ok=True)
-print(f"logs directory at {logs_dir}")
-ckpt_dir = os.path.join(base_dir, "ckpt")
-os.makedirs(ckpt_dir, exist_ok=True)
-print(f"ckpt directory at {ckpt_dir}")
+output_dir = os.path.abspath("output")
+morph_dir = os.path.join(output_dir, "morphs")
+os.makedirs(morph_dir, exist_ok=True)
 
-if args.llm == "gpt":
+if args.agent == "gpt":
     # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
     from openai import OpenAI
 
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    def llm(system: str, prompt: str, temp: float, max_tokens: int):
+    def agent(system: str, prompt: str, temp: float, max_tokens: int):
         response = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system},
@@ -66,11 +59,11 @@ if args.llm == "gpt":
         )
         return response.choices[0].message.content
 
-elif args.llm == "codellama":
+elif args.agent == "codellama":
     # https://replicate.com/meta/codellama-70b-instruct
     import replicate
 
-    def llm(system: str, prompt: str, temp: float, max_tokens: int):
+    def agent(system: str, prompt: str, temp: float, max_tokens: int):
         output = replicate.run(
             "meta/codellama-70b-instruct:a279116fe47a0f65701a8817188601e2fe8f4b9e04a518789655ea7b995851bf",
             input={
@@ -87,130 +80,123 @@ elif args.llm == "codellama":
         )
         return output
 
-# Spin up a Tensorboard instance to monitor training
-os.system("pkill -f 'tensorboard'")
-tb_proc = subprocess.Popen(["tensorboard", f"--logdir={logs_dir}"])
-tb_chrome_proc = subprocess.Popen(["/usr/bin/google-chrome", "http://localhost:6006/"])
+if args.tb:
+    # Spin up a Tensorboard instance to monitor training
+    os.system("pkill -f 'tensorboard'")
+    tb_proc = subprocess.Popen(["tensorboard", f"--logdir={morph_dir}"])
+    tb_chrome_proc = subprocess.Popen(["/usr/bin/google-chrome", "http://localhost:6006/"])
 
-# Seed with the players in the local directory "players"
-seed_players_dir = os.path.join(os.getcwd(), "players", args.framework)
-players = os.listdir(seed_players_dir)
-for player in players:
-    shutil.copy(os.path.join(seed_players_dir, player), player_dir)
-# Remove the player suffix from the player names
-players = [x.split(".")[0] for x in players]
-# shuffle the players and clip to num_players
-random.shuffle(players)
-players = players[: args.num_players]
+from dataclasses import dataclass
+import bisect
+
+@dataclass(order=True)
+class Morph:
+    score: float
+    name: str  # Name is secondary in sorting
+
+morphs: List[Morph] = []
+if not args.protomorphs:
+    morphs.append(Morph(-1, "base")) # -1 means it has yet to be scored
+else:
+    morphs = []
+    for protomorph in args.protomorphs.split(","):
+        if os.path.exists(os.path.join(morph_dir, protomorph)):
+            morphs.append(Morph(-1, protomorph))
+
+print("morphs:")
+for morphs in morphs:
+    print(f"\t🧬\t{protomorph}")    
 for round in range(args.num_rounds):
-    print(f"Starting evolution rounds {round}")
-    # reproduce to fill in missing players
-    while len(players) < args.num_players:
-        run_id = str(uuid.uuid4())[:6]
-        print(f"Creating run {run_id}")
-        parents = random.sample(players, 2)
-        print(f"Reproducing {parents[0]} and {parents[1]}")
-        # Add parent names to run_id for easy identification
-        run_id = f"{parents[0][:2]}_{parents[1][:2]}_{run_id}"
+    print(f"round {round}")
+
+    # ---- mutation
+
+    print("mutation:")
+    while len(morphs) < args.num_morphs:    
+        protomorph = random.choice(morphs, weights=[morph.score for morph in morphs])
+        protomorph_filepath = os.path.join(morph_dir, protomorph, "code.py")
+        neomorph = str(uuid.uuid4())[:6]
+        neomorph_dir = os.path.join(morph_dir, neomorph)
+        neomorph_filepath = os.path.join(neomorph_dir, "code.py")
+        os.makedirs(neomorph_dir, exist_ok=True)
+        print(f"\t🧬\t{protomorph} has spawned {neomorph}")
+        protomorph_as_text = ""
+        with open(protomorph_filepath, "r") as f:
+            protomorph_as_text += f"\n{f.read()}"
         # zero-shot
-        system_prompt = f"""
+        reply = agent("""
 You are a expert machine learning research engineer.
 You excel at creating new and unique model architectures.
-You use {args.framework} and make use of the einops library.
 You will be given several example blocks of code.
 Create a new block of code inspired by the given blocks.
 The block of code should be called `Block` and should be a subclass of `nn.Module`.
 Make sure the kwarg `num_classes` is present in the `__init__` method.
-Do not explain, return only the working code which will be written directly to a .py file."""
-        user_prompt = ""
-        for parent in parents:
-            parent_filepath = os.path.join(player_dir, f"{parent}.py")
-            with open(parent_filepath, "r") as f:
-                user_prompt += f"\n{f.read()}"
-        reply = llm(system_prompt, user_prompt, 0.9, 512)
-        reply = llm(
-            """
+Do not explain, return only the working code which will be written directly to a .py file.""",
+            protomorph_as_text, 0.7, 512)
+        reply = agent("""
 You are an expert debugging machine.
 You fix dim mismatch errors in model architectures.
 Return the user provided code with any mistakes removed.
 Remove any comments.
 Do not explain return only the code.""",
-            reply,
-            0.7,
-            512,
-        )
-        run_filename = f"{run_id}.py"
-        run_filepath = os.path.join(player_dir, run_filename)
-        with open(run_filepath, "w") as f:
+            reply, 0.7, 512)
+        with open(neomorph_filepath, "w") as f:
             # HACK: removes first and last lines
             f.write("\n".join(reply.split("\n")[1:-1]))
-        players.append(run_id)
+        morphs.append(Morph(-1, neomorph))
 
-    best_scores = {}
-    results_filepath = os.path.join(ckpt_dir, f"results.r{round}.yaml")
-    with open(results_filepath, "w") as f:
-        yaml.dump({}, f)
-    previous_results_filepath = os.path.join(ckpt_dir, f"results.r{round-1}.yaml")
-    if os.path.exists(previous_results_filepath):
-        with open(previous_results_filepath, "r") as f:
-            previous_results = yaml.safe_load(f)
-    else:
-        previous_results = {}
-    for player in players:
-        # skip already run players
-        if player in previous_results:
-            best_scores[player] = previous_results[player]["test_accuracy"]
+    # ---- selection
+
+    print("selection:")
+    leaderboard = {}
+    leaderboard_filepath = os.path.join(output_dir, f"leaderboard.r{round}.yaml")
+    with open(leaderboard_filepath, "w") as f:
+        yaml.dump({m.name : m.score for m in morphs}, f)
+    for morph in morphs:
+        if morph.score != -1:
+            print(f"\t⏩\t skipping {morph.name} with score {morph.score}")
             continue
-        print(f"Running {args.framework} traineval for {player}")
-        model_filepath = os.path.join(player_dir, f"{player}.py")
+        elif morph.score != -2:
+            print(f"\t⏩\t skipping {morph.name} with errors")
+            continue
+        print(f"\t⏯️\t running {morph.name}")
+        morph_filepath = os.path.join(morph_dir, morph, "code.py")
+        print("killing stale docker processes ... ")
         os.system("docker kill $(docker ps -aq) && docker rm $(docker ps -aq)")
-        player_docker_proc = subprocess.Popen(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "--gpus=all",
-                "-v",
-                f"{model_filepath}:/src/model.py",
-                "-v",
-                f"{ckpt_dir}:/ckpt",
-                "-v",
-                f"{logs_dir}:/logs",
-                "-v",
-                f"{data_dir}:/data",
-                "-e",
-                f"RUN_NAME={player}",
-                "-e",
-                f"ROUND={round}",
-                f"evo_{args.framework}",
-            ]
-        )
-        player_docker_proc.wait()
-        if player_docker_proc.returncode != 0:
-            print(f"Error occurred when training player {player}")
-            best_scores[player] = 0.0
+        time.sleep(2)
+        os.environ["MORPH"] = morph
+        print("running docker ...")
+        proc = subprocess.Popen(["bash", f"scripts/{args.compute_backend}.sh"])
+        proc.wait()
+        if proc.returncode != 0:
+            print(f"\t❌\terror occurred when training morph {morph}")
+            leaderboard[morph] = -2
         else:
-            print(f"Trained player {player}")
-            with open(results_filepath, "r") as f:
-                player_results = yaml.safe_load(f)
-            best_scores[player] = player_results[player]["test_accuracy"]
-        print(f"Player {player} result {best_scores[player]}")
+            print("looking for results")
+            try:
+                morph_output_filepath = os.path.join(morph_dir, morph, "output.yaml")
+                with open(morph_output_filepath, "r") as f:
+                    morph_output = yaml.safe_load(f)
+                morph_score = morph_output["test_accuracy"]
+            except
+            leaderboard[morph] = morph_leaderboard[morph]["test_accuracy"]
+        print(f"Player {morph} result {leaderboard[morph]}")
 
-    sorted_players = sorted(best_scores.items(), key=lambda x: x[1], reverse=True)
-    print(f"Sorted players: {sorted_players}")
-    cull_index = len(sorted_players) // args.cull_ratio
-    top_players = [x[0] for x in sorted_players[:cull_index]]
-    print(f"Top players: {top_players}")
-    bot_players = [x[0] for x in sorted_players[-cull_index:]]
-    print(f"Bottom players: {bot_players}")
-    for player in bot_players:
-        os.remove(os.path.join(player_dir, f"{player}.py"))
-        print(f"Removed player {player}")
-    players = [x for x in players if x not in bot_players]
+    sorted_morphs = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
+    print(f"Sorted morphs: {sorted_morphs}")
+    cull_index = len(sorted_morphs) // args.cull_ratio
+    top_morphs = [x[0] for x in sorted_morphs[:cull_index]]
+    print(f"Top morphs: {top_morphs}")
+    bot_morphs = [x[0] for x in sorted_morphs[-cull_index:]]
+    print(f"Bottom morphs: {bot_morphs}")
+    for morph in bot_morphs:
+        os.remove(os.path.join(morph_dir, f"{morph}.py"))
+        print(f"Removed morph {morph}")
+    morphs = [x for x in morphs if x not in bot_morphs]
 
-    # Plot round results
+    # Plot round leaderboard
     plot_filepath = os.path.join(ckpt_dir, "test_accuracy_plot.png")
-    yaml_files = glob.glob(f"{ckpt_dir}/results.r*.yaml")
+    yaml_files = glob.glob(f"{ckpt_dir}/leaderboard.r*.yaml")
     rounds = []
     test_acc = []
     for file in yaml_files:
