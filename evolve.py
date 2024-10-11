@@ -1,28 +1,14 @@
-"""
-
-lifespan
-multiple docker process spawning and running, potentially dying but that is okay. monitoring gpu utilization to determine whether more can be spawned.
-
-"""
+"""its morphin' time"""
 
 import argparse
-import base64
-import glob
 import os
-import requests
 import random
-import shutil
 import subprocess
 import time
 import uuid
 import yaml
-import datetime
 from dataclasses import dataclass
 from typing import List
-
-import matplotlib.pyplot as plt
-from io import BytesIO
-from PIL import Image
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=0)
@@ -86,9 +72,6 @@ if args.tb:
     tb_proc = subprocess.Popen(["tensorboard", f"--logdir={morph_dir}"])
     tb_chrome_proc = subprocess.Popen(["/usr/bin/google-chrome", "http://localhost:6006/"])
 
-from dataclasses import dataclass
-import bisect
-
 @dataclass(order=True)
 class Morph:
     score: float
@@ -105,7 +88,8 @@ else:
 
 print("morphs:")
 for morphs in morphs:
-    print(f"\t🧬\t{protomorph}")    
+    print(f"\t🧬\t{protomorph}")
+
 for round in range(args.num_rounds):
     print(f"round {round}")
 
@@ -115,32 +99,25 @@ for round in range(args.num_rounds):
     while len(morphs) < args.num_morphs:    
         protomorph = random.choice(morphs, weights=[morph.score for morph in morphs])
         protomorph_filepath = os.path.join(morph_dir, protomorph, "code.py")
+        protomorph_as_text = "<cell>"
+        with open(protomorph_filepath, "r") as f:
+            protomorph_as_text += f"{f.read()}"
+        protomorph_as_text += "</cell>"
+
         neomorph = str(uuid.uuid4())[:6]
         neomorph_dir = os.path.join(morph_dir, neomorph)
         neomorph_filepath = os.path.join(neomorph_dir, "code.py")
         os.makedirs(neomorph_dir, exist_ok=True)
         print(f"\t🧬\t{protomorph} has spawned {neomorph}")
-        protomorph_as_text = ""
-        with open(protomorph_filepath, "r") as f:
-            protomorph_as_text += f"\n{f.read()}"
-        # zero-shot
-        reply = agent("""
-You are a expert machine learning research engineer.
-You excel at creating new and unique model architectures.
-You will be given several example blocks of code.
-Create a new block of code inspired by the given blocks.
-The block of code should be called `Block` and should be a subclass of `nn.Module`.
-Make sure the kwarg `num_classes` is present in the `__init__` method.
-Do not explain, return only the working code which will be written directly to a .py file.""",
-            protomorph_as_text, 0.7, 512)
-        reply = agent("""
-You are an expert debugging machine.
-You fix dim mismatch errors in model architectures.
-Return the user provided code with any mistakes removed.
-Remove any comments.
-Do not explain return only the code.""",
-            reply, 0.7, 512)
+        
+        with open('prompt.txt', "r") as f:
+            prompt = f.read()
+        with open('notebooks/base.ipynb', "r") as f:
+            base = f.read()
+        prompt += f"<notebook>\n{base}\n</notebook>"
+        reply = agent(prompt, protomorph_as_text, 0.7, 512)
         with open(neomorph_filepath, "w") as f:
+            import pdb; pdb.set_trace()
             # HACK: removes first and last lines
             f.write("\n".join(reply.split("\n")[1:-1]))
         morphs.append(Morph(-1, neomorph))
@@ -150,8 +127,6 @@ Do not explain return only the code.""",
     print("selection:")
     leaderboard = {}
     leaderboard_filepath = os.path.join(output_dir, f"leaderboard.r{round}.yaml")
-    with open(leaderboard_filepath, "w") as f:
-        yaml.dump({m.name : m.score for m in morphs}, f)
     for morph in morphs:
         if morph.score != -1:
             print(f"\t⏩\t skipping {morph.name} with score {morph.score}")
@@ -169,50 +144,28 @@ Do not explain return only the code.""",
         proc = subprocess.Popen(["bash", f"scripts/{args.compute_backend}.sh"])
         proc.wait()
         if proc.returncode != 0:
-            print(f"\t❌\terror occurred when training morph {morph}")
-            leaderboard[morph] = -2
+            print(f"\t❌\terror when running {morph}")
+            score = -2
+            continue
+        try:
+            morph_output_filepath = os.path.join(morph_dir, morph, "output.yaml")
+            with open(morph_output_filepath, "r") as f:
+                morph_output = yaml.safe_load(f)
+            score = morph_output["test_accuracy"]
+        except Exception as e:
+            print(f"\t❌\terror when running {morph}: {e}")
+            score = -2
+        leaderboard[morph] = score
+        morph.score = score
+        print(f"\t🏁\t{morph.name} scored {score}")
+    with open(leaderboard_filepath, "w") as f:
+        yaml.dump(leaderboard, f)
+
+    doomed = []
+    for i, (morph, score) in enumerate(sorted(morphs)):
+        if i < args.topk_morphs:
+            print(f"\t🏆\t{morph.name} is in the top {args.topk_morphs} with score {score}")
         else:
-            print("looking for results")
-            try:
-                morph_output_filepath = os.path.join(morph_dir, morph, "output.yaml")
-                with open(morph_output_filepath, "r") as f:
-                    morph_output = yaml.safe_load(f)
-                morph_score = morph_output["test_accuracy"]
-            except Exception as e:
-                print(f"\t❌\t{e}")
-                morph_score = -2
-            leaderboard[morph] = morph_score
-        print(f"\t🏁\t{morph.name} scored {morph.score}")
-
-    sorted_morphs = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
-    print(f"Sorted morphs: {sorted_morphs}")
-    cull_index = len(sorted_morphs) // args.cull_ratio
-    top_morphs = [x[0] for x in sorted_morphs[:cull_index]]
-    print(f"Top morphs: {top_morphs}")
-    bot_morphs = [x[0] for x in sorted_morphs[-cull_index:]]
-    print(f"Bottom morphs: {bot_morphs}")
-    for morph in bot_morphs:
-        os.remove(os.path.join(morph_dir, f"{morph}.py"))
-        print(f"Removed morph {morph}")
-    morphs = [x for x in morphs if x not in bot_morphs]
-
-    # Plot round leaderboard
-    plot_filepath = os.path.join(ckpt_dir, "test_accuracy_plot.png")
-    yaml_files = glob.glob(f"{ckpt_dir}/leaderboard.r*.yaml")
-    rounds = []
-    test_acc = []
-    for file in yaml_files:
-        with open(file, "r") as f:
-            data = yaml.safe_load(f)
-        round_number = int(file.split(".")[-2].split("r")[-1])
-        for key in data:
-            rounds.append(round_number)
-            test_acc.append(data[key]["test_accuracy"])
-
-    plt.scatter(rounds, test_acc)
-    plt.xlabel("round")
-    plt.ylabel("acc")
-    plt.title("evolution")
-    plt.xlim(0, 32)
-    plt.ylim(0, 1)
-    plt.savefig(plot_filepath)
+            print(f"\t🗑\t{morph.name} is in the bottom with score {score}")
+            doomed.append(morph)
+    morphs = [morph for morph in morphs if morph not in doomed]

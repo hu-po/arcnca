@@ -32,6 +32,16 @@ the test notebook installs necessary packages, runs `cax` tests, downloads the d
 
 for kaggle you need to "create a notebook" from the ["code" page](https://www.kaggle.com/competitions/arc-prize-2024/code) and paste in the contents of `test.ipynb` then click "save version" and make sure to disable internet. then go to the ["submit" page](https://www.kaggle.com/competitions/arc-prize-2024/submit) and hit "submit prediction".
 
+## Morph Evolutions
+
+```bash
+pip install openai
+export OPENAI_API_KEY=...
+pip install wandb
+wandb --login
+python3 evolve.py --seed 42
+```
+
 ## Useful Links
 
 - https://arcprize.org/

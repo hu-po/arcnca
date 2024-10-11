@@ -1,6 +1,10 @@
-You are a machine learning research expert, a kaggle grandmaster, a JAX genius. Carefully examine the following kaggle competition submission, which is a single cell within a jupyter notebook. Identify any issues, mistakes, errors, or potential improvements to the submission. Use the submission output to better understand the submission. To aid in the evaluation of the code submission, descriptions of the competition from the kaggle website are provided. Provide an analysis and return an updated submission. 
+You are a machine learning research expert, a kaggle grandmaster, a JAX genius. Carefully examine the following kaggle competition submission, your focus is a single cell within a jupyter notebook that contains dataset parsing and model training code. Identify and fix any issues, mistakes, bugs, or errors. Think carefully and implement any potential improvements to the submission. Be brave and don't be afraid to make significant changes to the cell. Return only the updated cell, which should match the original cell provided by the user in strucuture and format. Careful with variables names to prevent incompatibility with the rest of the notebook.
 
-<https://www.kaggle.com/competitions/arc-prize-2024/overview>
+To aid in the evaluation of the code submission, an additional description of the competition and cax library is provided.
+
+<description>
+
+source: https://www.kaggle.com/competitions/arc-prize-2024/overview
 Evaluation
 This competition evaluates submissions on the percentage of correct predictions. For each task, you should predict exactly 2 outputs for every test input grid contained in the task. (Tasks can have more than one test input that needs a predicted output.) Each task test output has one ground truth. For a given task output, any of the 2 predicted outputs matches the ground truth exactly, you score 1 for that task test output, otherwise 0. The final score is the sum averaged of the highest score per task output divided by the total number of task test outputs.
 
@@ -17,9 +21,8 @@ IMPORTANT: All the task_ids in the input challenges json file must also be prese
               {"attempt_1": [[0, 0], [0, 0]], "attempt_2": [[0, 0], [0, 0]]}],
  ...
 }
-<https://www.kaggle.com/competitions/arc-prize-2024/overview>
 
-<https://www.kaggle.com/competitions/arc-prize-2024/data>
+source: https://www.kaggle.com/competitions/arc-prize-2024/data
 The objective of this competition is to create an algorithm that is capable of solving abstract reasoning tasks. Critically, these are novel tasks: tasks that the algorithm has never seen before. Hence, simply memorizing a set of reasoning templates will not suffice.
 
 The format is different from the previous competition, so please read this information carefully, and refer to supplementary documentation as needed.
@@ -48,18 +51,10 @@ A "pair" is a dictionary with two fields:
 A "grid" is a rectangular matrix (list of lists) of integers between 0 and 9 (inclusive). The smallest possible grid size is 1x1 and the largest is 30x30.
 
 The data on this page should be used to develop and evaluate your models. When notebooks are submitted for rerun, they are scored using 100 unseen tasks found in the rerun file named arc-agi_test_challenges.json. The rerun tasks will contain train pairs of inputs and outputs as well as the tasks test input. Your algorithm must predict the test output. The majority of the 100 tasks used for leaderboard score only have one test input that will require a corresponding output prediction, although for a small number of tasks, you will be asked to make predictions for two test inputs.
-<https://www.kaggle.com/competitions/arc-prize-2024/data>
 
-<information on cax>
+source: https://github.com/maxencefaldor/cax
 CAX introduces a unifying framework for all cellular automata types, encompassing discrete, continuous, and neural models across any number of dimensions (Table 1). This flexible architecture is built upon two key components: the perceive module and the update module. Together, these modules define the local rule of the CA. At each time step, this local rule is applied uniformly to all cells in the grid, generating the next global state of the system, as explained in Section 2.1. This modular approach not only provides a clear separation of concerns but also facilitates easy experimentation and extension of existing CA models.
 A cellular automaton is a simple model of computation consisting of a regular grid of cells, each in a particular state. The grid can be in any finite number of dimensions. For each cell, a set of cells called its neighborhood is defined relative to the specified cell. The grid is updated at discrete time steps according to a fixed rule that determines the new state of each cell based on its current state and the states of the cells in its neighborhood.
 A controllable cellular automaton (CCA) is a generalization of CA that incorporates the ability to accept external inputs at each time step. CCAs formalize the concept of Goal-Guided NCA that has been introduced in the literature by Sudhakaran et al. (2022). The external inputs can modify the behavior of CCAs, offering the possibility to respond dynamically to changing conditions or control signals while maintaining the fundamental principles of cellular automata.
-<information on cax>
 
-<submission>
-
-<submission>
-
-<submission output>
-
-<submission output>
+</description>
