@@ -19,7 +19,7 @@ various types of compute were used
 
 ## Dependencies and Data
 
-use the minimal `notebooks/test.ipynb` notebook to run tests on a machine. first ssh into your machine and run the following command:
+use the minimal `morphs/test.ipynb` notebook to run tests on a machine. first ssh into your machine and run the following command:
 
 ```bash
 git clone https://github.com/hu-po/arcnca

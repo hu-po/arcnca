@@ -60,7 +60,7 @@ def make_morph_notebook(morph: Morph) -> str:
     morph_filepath = os.path.join(morph_dir, morph.name, "code.py")
     with open(morph_filepath, "r") as f:
         raw_code = f.read()
-    with open("notebooks/base.ipynb", "r") as f:
+    with open("morphs/base.ipynb", "r") as f:
         raw_base_notebook = f.read()
     morph_nb_filepath = os.path.join(morph_dir, morph.name, "notebook.ipynb")
     # Replace cell containing #<cell> inside base notebook
@@ -124,12 +124,12 @@ for round_num in range(args.num_rounds):
         os.makedirs(neomorph_dir, exist_ok=True)
         logging.info(f"\t🧬\t{protomorph.name} has spawned {neomorph}")
 
-        if not os.path.exists('prompt.txt') or not os.path.exists('notebooks/base.ipynb'):
+        if not os.path.exists('prompt.txt') or not os.path.exists('morphs/base.ipynb'):
             raise FileNotFoundError("Required files (prompt.txt or base.ipynb) are missing")
 
         with open('prompt.txt', "r") as f:
             prompt = f.read()
-        with open('notebooks/base.ipynb', "r") as f:
+        with open('morphs/base.ipynb', "r") as f:
             base = f.read()
         prompt += f"<notebook>\n{base}\n</notebook>"
         reply = agent(prompt, protomorph_as_text, TEMPERATURE, MAX_TOKENS)
