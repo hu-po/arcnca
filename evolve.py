@@ -13,7 +13,7 @@ from typing import List
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=0)
 parser.add_argument("--agent", type=str, default="gpt")
-parser.add_argument("--tb", type=bool, default=True, help="start tensorboard session")
+parser.add_argument("--tb", action="store_true", help="start tensorboard session")
 parser.add_argument("--protomorphs", type=str, help="comma separated list of protomorphs to seed evolution")
 parser.add_argument("--num_rounds", type=int, default=32, help="number of rounds to run")
 parser.add_argument("--num_morphs", type=int, default=4, help="number of morphs per round")
@@ -68,7 +68,7 @@ elif args.agent == "codellama":
 
 if args.tb:
     # Spin up a Tensorboard instance to monitor training
-    os.system("pkill -f 'tensorboard'")
+    subprocess.run(["pkill", "-f", "tensorboard"], check=False)
     tb_proc = subprocess.Popen(["tensorboard", f"--logdir={morph_dir}"])
     tb_chrome_proc = subprocess.Popen(["/usr/bin/google-chrome", "http://localhost:6006/"])
 
@@ -79,39 +79,37 @@ class Morph:
 
 morphs: List[Morph] = []
 if not args.protomorphs:
-    morphs.append(Morph(-1, "diffnca")) # -1 means it has yet to be scored
+    morphs.append(Morph(-1, "diffnca"))  # -1 means it has yet to be scored
 else:
-    morphs = []
     for protomorph in args.protomorphs.split(","):
         if os.path.exists(os.path.join(morph_dir, protomorph)):
             morphs.append(Morph(-1, protomorph))
 
 def make_morph_notebook(morph: Morph) -> str:
-    morph_filepath = os.path.join(morph_dir, protomorph, "code.py")
+    morph_filepath = os.path.join(morph_dir, morph.name, "code.py")
     with open(morph_filepath, "r") as f:
         raw_code = f.read()
     with open("notebooks/base.ipynb", "r") as f:
         raw_base_notebook = f.read()
-    morph_nb_filepath = os.path.join(morph_dir, protomorph, "notebook.ipynb")
-    # replaces cell containing #<cell> inside base notebook
+    morph_nb_filepath = os.path.join(morph_dir, morph.name, "notebook.ipynb")
+    # Replaces cell containing #<cell> inside base notebook
     # with the code in the morph's code.py file
     with open(morph_nb_filepath, "w") as f:
         f.write(raw_base_notebook.replace("#<cell>", raw_code))
     return morph_nb_filepath
 
 print("morphs:")
-for morphs in morphs:
-    print(f"\t🧬\t{protomorph}")
+for morph in morphs:
+    print(f"\t🧬\t{morph.name}")
 
-for round in range(args.num_rounds):
-    print(f"round {round}")
+for round_num in range(args.num_rounds):
+    print(f"round {round_num}")
 
     # ---- mutation
-
     print("mutation:")
-    while len(morphs) < args.num_morphs:    
-        protomorph = random.choice(morphs, weights=[morph.score for morph in morphs])
-        protomorph_filepath = os.path.join(morph_dir, protomorph, "code.py")
+    while len(morphs) < args.num_morphs:
+        protomorph = random.choices(morphs, weights=[morph.score for morph in morphs])[0]
+        protomorph_filepath = os.path.join(morph_dir, protomorph.name, "code.py")
         protomorph_as_text = "<cell>"
         with open(protomorph_filepath, "r") as f:
             protomorph_as_text += f"{f.read()}"
@@ -121,7 +119,7 @@ for round in range(args.num_rounds):
         neomorph_dir = os.path.join(morph_dir, neomorph)
         neomorph_filepath = os.path.join(neomorph_dir, "code.py")
         os.makedirs(neomorph_dir, exist_ok=True)
-        print(f"\t🧬\t{protomorph} has spawned {neomorph}")
+        print(f"\t🧬\t{protomorph.name} has spawned {neomorph}")
         
         with open('prompt.txt', "r") as f:
             prompt = f.read()
@@ -130,55 +128,56 @@ for round in range(args.num_rounds):
         prompt += f"<notebook>\n{base}\n</notebook>"
         reply = agent(prompt, protomorph_as_text, 0.7, 512)
         with open(neomorph_filepath, "w") as f:
-            import pdb; pdb.set_trace()
             # HACK: removes first and last lines
             f.write("\n".join(reply.split("\n")[1:-1]))
         morphs.append(Morph(-1, neomorph))
 
     # ---- selection
-
     print("selection:")
     leaderboard = {}
-    leaderboard_filepath = os.path.join(output_dir, f"leaderboard.r{round}.yaml")
+    leaderboard_filepath = os.path.join(output_dir, f"leaderboard.r{round_num}.yaml")
     for morph in morphs:
         if morph.score != -1:
             print(f"\t⏩\t skipping {morph.name} with score {morph.score}")
             continue
-        elif morph.score != -2:
+        elif morph.score == -2:
             print(f"\t⏩\t skipping {morph.name} with errors")
             continue
         print(f"\t⏯️\t running {morph.name}")
-        morph_filepath = os.path.join(morph_dir, morph, "code.py")
-        print("killing stale docker processes ... ")
-        os.system("docker kill $(docker ps -aq) && docker rm $(docker ps -aq)")
+        morph_filepath = os.path.join(morph_dir, morph.name, "code.py")
+        print("killing stale docker processes ...")
+        subprocess.run(["docker", "kill", "$(docker ps -aq)"], shell=True, check=False)
+        subprocess.run(["docker", "rm", "$(docker ps -aq)"], shell=True, check=False)
         time.sleep(2)
         print("setting up environment variables ...")
-        os.environ["MORPH"] = morph
+        os.environ["MORPH"] = morph.name
         os.environ["MORPH_NB_FILEPATH"] = make_morph_notebook(morph)
         print(f"\tMORPH_NB_FILEPATH\t{os.environ['MORPH_NB_FILEPATH']}")
         print("running docker ...")
         proc = subprocess.Popen(["bash", f"scripts/run.{args.compute_backend}.sh"])
         proc.wait()
         if proc.returncode != 0:
-            print(f"\t❌\terror when running {morph}")
+            print(f"\t❌\terror when running {morph.name}")
             score = -2
             continue
         try:
-            morph_output_filepath = os.path.join(morph_dir, morph, "output.yaml")
+            morph_output_filepath = os.path.join(morph_dir, morph.name, "output.yaml")
             with open(morph_output_filepath, "r") as f:
                 morph_output = yaml.safe_load(f)
             score = morph_output["test_accuracy"]
         except Exception as e:
-            print(f"\t❌\terror when running {morph}: {e}")
+            print(f"\t❌\terror when running {morph.name}: {e}")
             score = -2
-        leaderboard[morph] = score
+        leaderboard[morph.name] = score
         morph.score = score
         print(f"\t🏁\t{morph.name} scored {score}")
+    
     with open(leaderboard_filepath, "w") as f:
         yaml.dump(leaderboard, f)
 
     doomed = []
-    for i, (morph, score) in enumerate(sorted(morphs)):
+    for i, morph in enumerate(sorted(morphs, key=lambda m: m.score)):
+        score = morph.score
         if i < args.topk_morphs:
             print(f"\t🏆\t{morph.name} is in the top {args.topk_morphs} with score {score}")
         else:
