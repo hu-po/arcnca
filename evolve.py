@@ -13,13 +13,6 @@ from typing import List
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 
-# Constants
-UNSCORED = None
-ERROR_SCORE = -2
-TEMPERATURE = 0.7
-MAX_TOKENS = 512
-REPEAT_PENALTY = 1.1
-
 # Argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=0)
@@ -40,20 +33,25 @@ output_dir = os.path.join(root_dir, "output")
 morph_dir = os.path.join(root_dir, "morphs")
 os.makedirs(morph_dir, exist_ok=True)
 
-# Define Morph class
+# morph states
+NOT_RUN_YET = 0
+ALREADY_RAN = 0
+ERRORED_OUT = -1
+
 @dataclass(order=True)
 class Morph:
     score: float
     name: str
+    state: int = NOT_RUN_YET
 
 # Initialize morphs
 morphs: List[Morph] = []
 if not args.protomorphs:
-    morphs.append(Morph(UNSCORED, "diffnca"))  # -1 means it has yet to be scored
+    morphs.append(Morph(0, "diffnca"))
 else:
     for protomorph in args.protomorphs.split(","):
         if os.path.exists(os.path.join(morph_dir, protomorph)):
-            morphs.append(Morph(UNSCORED, protomorph))
+            morphs.append(Morph(0, protomorph))
 logging.info("Morphs:")
 for morph in morphs:
     logging.info(f"\t🧬\t{morph.name}")
@@ -71,6 +69,9 @@ def make_morph_notebook(morph: Morph) -> str:
     return morph_nb_filepath
 
 # Agent function based on the chosen agent type
+TEMPERATURE = 0.7
+MAX_TOKENS = 512
+REPEAT_PENALTY = 1.1
 def agent(system: str, prompt: str, temp: float, max_tokens: int):
     if args.agent == "gpt":
         # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
@@ -135,17 +136,17 @@ for round_num in range(args.num_rounds):
         with open(neomorph_filepath, "w") as f:
             # HACK: removes first and last lines
             f.write("\n".join(reply.split("\n")[1:-1]))
-        morphs.append(Morph(UNSCORED, neomorph))
+        morphs.append(Morph(0, neomorph))
 
     # ---- selection ----
     logging.info("Selection:")
     leaderboard = {}
     leaderboard_filepath = os.path.join(output_dir, f"leaderboard.r{round_num}.yaml")
     for morph in morphs:
-        if morph.score is not UNSCORED:
+        if morph.state == ALREADY_RAN:
             logging.info(f"\t⏩\tSkipping {morph.name} with score {morph.score}")
             continue
-        elif morph.score == ERROR_SCORE:
+        elif morph.state == ERRORED_OUT:
             logging.info(f"\t⏩\tSkipping {morph.name} with errors")
             continue
         else:
@@ -169,21 +170,25 @@ for round_num in range(args.num_rounds):
             proc.wait()
             if proc.returncode != 0:
                 logging.error(f"\t❌\tError when running {morph.name}")
-                morph.score = ERROR_SCORE
+                morph.state = ERRORED_OUT
                 continue
             with open(morph_output_dir, "r") as f:
                 morph_output = yaml.safe_load(f)
-            score = morph_output["test_accuracy"]
+            score = morph_output["test_acc"]
+            leaderboard[morph.name] = score
+            morph.score = score
+            logging.info(f"\t🏁\t{morph.name} scored {score}")
         except Exception as e:
             logging.error(f"\t❌\tError when running {morph.name}: {e}")
-            score = ERROR_SCORE
-        leaderboard[morph.name] = score
-        morph.score = score
-        logging.info(f"\t🏁\t{morph.name} scored {score}")
+            continue
     
+    # write sorted leaderboard
+    leaderboard = {k: v for k, v in sorted(leaderboard.items(), key=lambda item: item[1], reverse=True)}
     with open(leaderboard_filepath, "w") as f:
         yaml.safe_dump(leaderboard, f, default_flow_style=False)
 
+    # ---- elimination ----
+    logging.info("Elimination:")
     doomed = []
     for i, morph in enumerate(sorted(morphs, key=lambda m: m.score)):
         score = morph.score
