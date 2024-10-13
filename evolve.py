@@ -75,7 +75,7 @@ if args.tb:
 @dataclass(order=True)
 class Morph:
     score: float
-    name: str  # Name is secondary in sorting
+    name: str
 
 morphs: List[Morph] = []
 if not args.protomorphs:
@@ -85,6 +85,19 @@ else:
     for protomorph in args.protomorphs.split(","):
         if os.path.exists(os.path.join(morph_dir, protomorph)):
             morphs.append(Morph(-1, protomorph))
+
+def make_morph_notebook(morph: Morph) -> str:
+    morph_filepath = os.path.join(morph_dir, protomorph, "code.py")
+    with open(morph_filepath, "r") as f:
+        raw_code = f.read()
+    with open("notebooks/base.ipynb", "r") as f:
+        raw_base_notebook = f.read()
+    morph_nb_filepath = os.path.join(morph_dir, protomorph, "notebook.ipynb")
+    # replaces cell containing #<cell> inside base notebook
+    # with the code in the morph's code.py file
+    with open(morph_nb_filepath, "w") as f:
+        f.write(raw_base_notebook.replace("#<cell>", raw_code))
+    return morph_nb_filepath
 
 print("morphs:")
 for morphs in morphs:
@@ -139,9 +152,12 @@ for round in range(args.num_rounds):
         print("killing stale docker processes ... ")
         os.system("docker kill $(docker ps -aq) && docker rm $(docker ps -aq)")
         time.sleep(2)
+        print("setting up environment variables ...")
         os.environ["MORPH"] = morph
+        os.environ["MORPH_NB_FILEPATH"] = make_morph_notebook(morph)
+        print(f"\tMORPH_NB_FILEPATH\t{os.environ['MORPH_NB_FILEPATH']}")
         print("running docker ...")
-        proc = subprocess.Popen(["bash", f"scripts/{args.compute_backend}.sh"])
+        proc = subprocess.Popen(["bash", f"scripts/run.{args.compute_backend}.sh"])
         proc.wait()
         if proc.returncode != 0:
             print(f"\t❌\terror when running {morph}")
