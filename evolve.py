@@ -1,5 +1,3 @@
-"""its morphin' time"""
-
 import argparse
 import os
 import random
@@ -7,9 +5,22 @@ import subprocess
 import time
 import uuid
 import yaml
+import datetime
+import logging
 from dataclasses import dataclass
 from typing import List
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+
+# Constants
+UNSCORED = None
+ERROR_SCORE = -2
+TEMPERATURE = 0.7
+MAX_TOKENS = 512
+REPEAT_PENALTY = 1.1
+
+# Argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=0)
 parser.add_argument("--agent", type=str, default="gpt")
@@ -18,22 +29,53 @@ parser.add_argument("--protomorphs", type=str, help="comma separated list of pro
 parser.add_argument("--num_rounds", type=int, default=32, help="number of rounds to run")
 parser.add_argument("--num_morphs", type=int, default=4, help="number of morphs per round")
 parser.add_argument("--topk_morphs", type=int, default=2, help="number of top morphs to keep each round")
-parser.add_argument("--compute_backend", type=str, default="oop") # one of oop, big, ojo (unless you are hupo this means nothing)
+parser.add_argument("--compute_backend", type=str, default="oop")
 args = parser.parse_args()
 
-print(f"🧫🔬\tseed\t{args.seed}")
+# Setup and seeding
+logging.info(f"Seed: {args.seed}")
 random.seed(args.seed)
-output_dir = os.path.abspath("output")
-morph_dir = os.path.join(output_dir, "morphs")
+root_dir = os.path.abspath(os.path.dirname(__file__))
+output_dir = os.path.join(root_dir, "output")
+morph_dir = os.path.join(root_dir, "morphs")
 os.makedirs(morph_dir, exist_ok=True)
 
-if args.agent == "gpt":
-    # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
-    from openai import OpenAI
+# Define Morph class
+@dataclass(order=True)
+class Morph:
+    score: float
+    name: str
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Initialize morphs
+morphs: List[Morph] = []
+if not args.protomorphs:
+    morphs.append(Morph(UNSCORED, "diffnca"))  # -1 means it has yet to be scored
+else:
+    for protomorph in args.protomorphs.split(","):
+        if os.path.exists(os.path.join(morph_dir, protomorph)):
+            morphs.append(Morph(UNSCORED, protomorph))
+logging.info("Morphs:")
+for morph in morphs:
+    logging.info(f"\t🧬\t{morph.name}")
 
-    def agent(system: str, prompt: str, temp: float, max_tokens: int):
+def make_morph_notebook(morph: Morph) -> str:
+    morph_filepath = os.path.join(morph_dir, morph.name, "code.py")
+    with open(morph_filepath, "r") as f:
+        raw_code = f.read()
+    with open("notebooks/base.ipynb", "r") as f:
+        raw_base_notebook = f.read()
+    morph_nb_filepath = os.path.join(morph_dir, morph.name, "notebook.ipynb")
+    # Replace cell containing #<cell> inside base notebook
+    with open(morph_nb_filepath, "w") as f:
+        f.write(raw_base_notebook.replace("#<cell>", raw_code))
+    return morph_nb_filepath
+
+# Agent function based on the chosen agent type
+def agent(system: str, prompt: str, temp: float, max_tokens: int):
+    if args.agent == "gpt":
+        # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         response = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system},
@@ -44,12 +86,9 @@ if args.agent == "gpt":
             max_tokens=max_tokens,
         )
         return response.choices[0].message.content
-
-elif args.agent == "codellama":
-    # https://replicate.com/meta/codellama-70b-instruct
-    import replicate
-
-    def agent(system: str, prompt: str, temp: float, max_tokens: int):
+    elif args.agent == "codellama":
+        # https://replicate.com/meta/codellama-70b-instruct
+        import replicate
         output = replicate.run(
             "meta/codellama-70b-instruct:a279116fe47a0f65701a8817188601e2fe8f4b9e04a518789655ea7b995851bf",
             input={
@@ -59,54 +98,17 @@ elif args.agent == "codellama":
                 "max_tokens": max_tokens,
                 "temperature": temp,
                 "system_prompt": system,
-                "repeat_penalty": 1.1,
-                "presence_penalty": 0,
-                "frequency_penalty": 0,
+                "repeat_penalty": REPEAT_PENALTY,
             },
         )
         return output
 
-if args.tb:
-    # Spin up a Tensorboard instance to monitor training
-    subprocess.run(["pkill", "-f", "tensorboard"], check=False)
-    tb_proc = subprocess.Popen(["tensorboard", f"--logdir={morph_dir}"])
-    tb_chrome_proc = subprocess.Popen(["/usr/bin/google-chrome", "http://localhost:6006/"])
-
-@dataclass(order=True)
-class Morph:
-    score: float
-    name: str
-
-morphs: List[Morph] = []
-if not args.protomorphs:
-    morphs.append(Morph(-1, "diffnca"))  # -1 means it has yet to be scored
-else:
-    for protomorph in args.protomorphs.split(","):
-        if os.path.exists(os.path.join(morph_dir, protomorph)):
-            morphs.append(Morph(-1, protomorph))
-
-def make_morph_notebook(morph: Morph) -> str:
-    morph_filepath = os.path.join(morph_dir, morph.name, "code.py")
-    with open(morph_filepath, "r") as f:
-        raw_code = f.read()
-    with open("notebooks/base.ipynb", "r") as f:
-        raw_base_notebook = f.read()
-    morph_nb_filepath = os.path.join(morph_dir, morph.name, "notebook.ipynb")
-    # Replaces cell containing #<cell> inside base notebook
-    # with the code in the morph's code.py file
-    with open(morph_nb_filepath, "w") as f:
-        f.write(raw_base_notebook.replace("#<cell>", raw_code))
-    return morph_nb_filepath
-
-print("morphs:")
-for morph in morphs:
-    print(f"\t🧬\t{morph.name}")
-
+# Evolution rounds
 for round_num in range(args.num_rounds):
-    print(f"round {round_num}")
+    logging.info(f"Round {round_num}")
 
-    # ---- mutation
-    print("mutation:")
+    # ---- mutation ----
+    logging.info("Mutation:")
     while len(morphs) < args.num_morphs:
         protomorph = random.choices(morphs, weights=[morph.score for morph in morphs])[0]
         protomorph_filepath = os.path.join(morph_dir, protomorph.name, "code.py")
@@ -119,68 +121,76 @@ for round_num in range(args.num_rounds):
         neomorph_dir = os.path.join(morph_dir, neomorph)
         neomorph_filepath = os.path.join(neomorph_dir, "code.py")
         os.makedirs(neomorph_dir, exist_ok=True)
-        print(f"\t🧬\t{protomorph.name} has spawned {neomorph}")
-        
+        logging.info(f"\t🧬\t{protomorph.name} has spawned {neomorph}")
+
+        if not os.path.exists('prompt.txt') or not os.path.exists('notebooks/base.ipynb'):
+            raise FileNotFoundError("Required files (prompt.txt or base.ipynb) are missing")
+
         with open('prompt.txt', "r") as f:
             prompt = f.read()
         with open('notebooks/base.ipynb', "r") as f:
             base = f.read()
         prompt += f"<notebook>\n{base}\n</notebook>"
-        reply = agent(prompt, protomorph_as_text, 0.7, 512)
+        reply = agent(prompt, protomorph_as_text, TEMPERATURE, MAX_TOKENS)
         with open(neomorph_filepath, "w") as f:
             # HACK: removes first and last lines
             f.write("\n".join(reply.split("\n")[1:-1]))
-        morphs.append(Morph(-1, neomorph))
+        morphs.append(Morph(UNSCORED, neomorph))
 
-    # ---- selection
-    print("selection:")
+    # ---- selection ----
+    logging.info("Selection:")
     leaderboard = {}
     leaderboard_filepath = os.path.join(output_dir, f"leaderboard.r{round_num}.yaml")
     for morph in morphs:
-        if morph.score != -1:
-            print(f"\t⏩\t skipping {morph.name} with score {morph.score}")
+        if morph.score is not UNSCORED:
+            logging.info(f"\t⏩\tSkipping {morph.name} with score {morph.score}")
             continue
-        elif morph.score == -2:
-            print(f"\t⏩\t skipping {morph.name} with errors")
+        elif morph.score == ERROR_SCORE:
+            logging.info(f"\t⏩\tSkipping {morph.name} with errors")
             continue
-        print(f"\t⏯️\t running {morph.name}")
-        morph_filepath = os.path.join(morph_dir, morph.name, "code.py")
-        print("killing stale docker processes ...")
-        subprocess.run(["docker", "kill", "$(docker ps -aq)"], shell=True, check=False)
-        subprocess.run(["docker", "rm", "$(docker ps -aq)"], shell=True, check=False)
+        else:
+            logging.info(f"\t⏯️\tRunning {morph.name}")
+        logging.info("Killing stale Docker processes...")
+        subprocess.run(["docker", "kill", "$(docker ps -aq)"], shell=True)
+        subprocess.run(["docker", "rm", "$(docker ps -aq)"], shell=True)
         time.sleep(2)
-        print("setting up environment variables ...")
+        logging.info("Setting up environment variables...")
         os.environ["MORPH"] = morph.name
-        os.environ["MORPH_NB_FILEPATH"] = make_morph_notebook(morph)
-        print(f"\tMORPH_NB_FILEPATH\t{os.environ['MORPH_NB_FILEPATH']}")
-        print("running docker ...")
-        proc = subprocess.Popen(["bash", f"scripts/run.{args.compute_backend}.sh"])
-        proc.wait()
-        if proc.returncode != 0:
-            print(f"\t❌\terror when running {morph.name}")
-            score = -2
-            continue
+        morph_nb_filepath = make_morph_notebook(morph)
+        os.environ["MORPH_NB_FILEPATH"] = morph_nb_filepath
+        logging.info(f"Environment variable MORPH_NB_FILEPATH: {os.environ['MORPH_NB_FILEPATH']}")
+        morph_output_dir = os.path.join(morph_dir, morph.name, datetime.datetime.now().isoformat())
+        os.makedirs(morph_output_dir, exist_ok=True)
+        morph_output_dir = os.path.join(morph_output_dir, "output.yaml")
+        os.environ["MORPH_OUTPUT_DIR"] = morph_output_dir
+        logging.info(f"Environment variable MORPH_OUTPUT_DIR: {os.environ['MORPH_OUTPUT_DIR']}")
         try:
-            morph_output_filepath = os.path.join(morph_dir, morph.name, "output.yaml")
-            with open(morph_output_filepath, "r") as f:
+            proc = subprocess.Popen(["bash", f"scripts/run.{args.compute_backend}.sh"])
+            proc.wait()
+            if proc.returncode != 0:
+                logging.error(f"\t❌\tError when running {morph.name}")
+                morph.score = ERROR_SCORE
+                continue
+            with open(morph_output_dir, "r") as f:
                 morph_output = yaml.safe_load(f)
             score = morph_output["test_accuracy"]
         except Exception as e:
-            print(f"\t❌\terror when running {morph.name}: {e}")
-            score = -2
+            logging.error(f"\t❌\tError when running {morph.name}: {e}")
+            score = ERROR_SCORE
         leaderboard[morph.name] = score
         morph.score = score
-        print(f"\t🏁\t{morph.name} scored {score}")
+        logging.info(f"\t🏁\t{morph.name} scored {score}")
     
     with open(leaderboard_filepath, "w") as f:
-        yaml.dump(leaderboard, f)
+        yaml.safe_dump(leaderboard, f, default_flow_style=False)
 
     doomed = []
     for i, morph in enumerate(sorted(morphs, key=lambda m: m.score)):
         score = morph.score
         if i < args.topk_morphs:
-            print(f"\t🏆\t{morph.name} is in the top {args.topk_morphs} with score {score}")
+            logging.info(f"\t🏆\t{morph.name} is in the top {args.topk_morphs} with score {score}")
         else:
-            print(f"\t🗑\t{morph.name} is in the bottom with score {score}")
+            logging.info(f"\t🗑\t{morph.name} is in the bottom with score {score}")
             doomed.append(morph)
+
     morphs = [morph for morph in morphs if morph not in doomed]
