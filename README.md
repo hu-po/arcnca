@@ -42,6 +42,10 @@ wandb --login
 python3 evolve.py --seed 42
 ```
 
+## Ideas
+
+- [ ] optimizer and loss can probably handle lots of variance, make templates
+
 ## Useful Links
 
 - https://arcprize.org/

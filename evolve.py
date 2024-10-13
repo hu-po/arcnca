@@ -76,14 +76,10 @@ if args.tb:
 class Morph:
     score: float
     name: str  # Name is secondary in sorting
-    path: str
 
 morphs: List[Morph] = []
 if not args.protomorphs:
-    morphs.append(Morph(
-        -1, "base", # -1 means it has yet to be scored
-        os.path.join("morphs", "base", "code.py")
-        ))
+    morphs.append(Morph(-1, "diffnca")) # -1 means it has yet to be scored
 else:
     morphs = []
     for protomorph in args.protomorphs.split(","):
