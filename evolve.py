@@ -7,7 +7,7 @@ import uuid
 import yaml
 from typing import List
 
-from .utils import Morph, ALREADY_RAN, ERRORED_OUT, morph_dir, output_dir, apply_prompt_to_morph
+from utils import Morph, ALREADY_RAN, ERRORED_OUT, MORPH_DIR, OUTPUT_DIR, PROMPT_DIR, apply_prompt_to_morph
 
 # Argument parsing
 parser = argparse.ArgumentParser()
@@ -15,7 +15,7 @@ parser.add_argument("--seed", type=int, default=0)
 parser.add_argument("--agent", type=str, default="gpt")
 parser.add_argument("--tb", action="store_true", help="start tensorboard session")
 parser.add_argument("--protomorphs", type=str, help="comma separated list of protomorphs to seed evolution")
-parser.add_argument("--num_rounds", type=int, default=32, help="number of rounds to run")
+parser.add_argument("--num_rounds", type=int, default=3, help="number of rounds to run")
 parser.add_argument("--num_morphs", type=int, default=4, help="number of morphs per round")
 parser.add_argument("--topk_morphs", type=int, default=2, help="number of top morphs to keep each round")
 parser.add_argument("--compute_backend", type=str, default="oop")
@@ -31,14 +31,17 @@ if not args.protomorphs:
     morphs.append(Morph(0, "conv"))
 else:
     for protomorph in args.protomorphs.split(","):
-        if os.path.exists(os.path.join(morph_dir, protomorph)):
+        if os.path.exists(os.path.join(MORPH_DIR, protomorph)):
             morphs.append(Morph(0, protomorph))
 print("Morphs:")
 for morph in morphs:
     print(f"\t🧬\t{morph.name}")
 
-# Mutation prompts
-mutation_prompts = list(os.listdir("prompts"))
+# list all files in mutation dir
+mutation_prompts_dir = os.path.join(PROMPT_DIR, "mutations")
+mutation_prompts_filepaths = []
+for mutation_prompt in os.listdir(mutation_prompts_dir):
+    mutation_prompts_filepaths.append(os.path.join(mutation_prompts_dir, mutation_prompt))
 
 # Evolution rounds
 for round_num in range(args.num_rounds):
@@ -47,16 +50,16 @@ for round_num in range(args.num_rounds):
     # ---- mutation ----
     print("Mutation:")
     while len(morphs) < args.num_morphs:
-        protomorph = random.choices(morphs, weights=[morph.score for morph in morphs])[0]
+        protomorph = random.choice(morphs) # TODO: weighted choice based on score
         neomorph_name = str(uuid.uuid4())[:6]
         print(f"\t🧬\t{protomorph.name} has spawned {neomorph_name}")
-        neomorph = apply_prompt_to_morph(protomorph, random.choice(mutation_prompts), neomorph_name)
+        neomorph = apply_prompt_to_morph(protomorph, random.choice(mutation_prompts_filepaths), neomorph_name)
         morphs.append(neomorph)
 
     # ---- selection ----
     print("Selection:")
     leaderboard = {}
-    leaderboard_filepath = os.path.join(output_dir, f"leaderboard.r{round_num}.yaml")
+    leaderboard_filepath = os.path.join(OUTPUT_DIR, f"leaderboard.r{round_num}.yaml")
     for morph in morphs:
         if morph.state == ALREADY_RAN:
             print(f"\t⏩\tSkipping {morph.name} with score {morph.score}")
@@ -79,7 +82,7 @@ for round_num in range(args.num_rounds):
                 print(f"\t❌\tError when running {morph.name}")
                 morph.state = ERRORED_OUT
                 continue
-            morph_output_filepath = os.path.join(output_dir, f"{morph.name}.yaml")
+            morph_output_filepath = os.path.join(OUTPUT_DIR, f"{morph.name}.yaml")
             with open(morph_output_filepath, "r") as f:
                 morph_output = yaml.safe_load(f)
             score = morph_output["test_acc"]
