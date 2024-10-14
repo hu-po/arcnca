@@ -34,12 +34,19 @@ for kaggle you need to "create a notebook" from the ["code" page](https://www.ka
 
 ## Morph Evolutions
 
+run the evolution script
+
 ```bash
-pip install openai
+pip install openai nbformat
 export OPENAI_API_KEY=...
-pip install wandb
-wandb --login
-python3 evolve.py --seed 42
+export WANDB_API_KEY=...
+python3 evolve.py --seed 42 --compute_backend oop
+```
+
+export a morph to a notebook to submit to kaggle
+
+```bash
+python3 export.py --morph conv
 ```
 
 ## Ideas
