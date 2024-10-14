@@ -2,7 +2,8 @@ jetson-containers run \
 -v /home/$USER/dev/arcnca/:/arcnca \
 -v /home/$USER/dev/arcnca/data:/kaggle/input/arc-prize-2024 \
 -v /home/$USER/dev/arcnca/output:/kaggle/working \
--e MORPH_NB_FILEPATH="/arcnca/morphs/conv.ipynb" \
+-e MORPH="conv" \
+-e WANDB_API_KEY=$WANDB_API_KEY \
 -e WANDB_ENTITY="hug" \
 -e WANDB_PROJECT="arcnca" \
 $(autotag jax) \

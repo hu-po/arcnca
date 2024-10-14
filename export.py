@@ -1,0 +1,1 @@
+# script to export a named morph to a minimal nb that can be copy pasted into kaggle
