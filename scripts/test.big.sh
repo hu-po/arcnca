@@ -7,4 +7,4 @@ sudo docker run --gpus all -it --rm \
 -e WANDB_ENTITY="hug" \
 -e WANDB_PROJECT="arcnca" \
 nvcr.io/nvidia/jax:24.04-py3 \
-bash -c 'pip install jupyter && jupyter nbconvert --to notebook --execute $MORPH_NB_FILEPATH --stdout'
+bash -c "pip install jupyter && jupyter nbconvert --to notebook --execute /arcnca/morphs/\$MORPH.ipynb --stdout"
