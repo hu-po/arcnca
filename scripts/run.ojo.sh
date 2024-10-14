@@ -6,4 +6,4 @@ jetson-containers run \
 -e MORPH_NB_FILEPATH=$MORPH_NB_FILEPATH \
 -e MORPH_OUTPUT_DIR=$MORPH_OUTPUT_DIR \
 $(autotag jax) \
-bash -c "pip install jupyter && jupyter nbconvert --to notebook --execute $MORPH_NB_FILEPATH --stdout"
+bash -c 'pip install jupyter && jupyter nbconvert --to notebook --execute $MORPH_NB_FILEPATH --stdout'
