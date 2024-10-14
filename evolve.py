@@ -10,6 +10,9 @@ import logging
 from dataclasses import dataclass
 from typing import List
 
+from openai import OpenAI
+client = OpenAI()
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 
@@ -68,42 +71,6 @@ def make_morph_notebook(morph: Morph) -> str:
         f.write(raw_base_notebook.replace("#<cell>", raw_code))
     return morph_nb_filepath
 
-# Agent function based on the chosen agent type
-TEMPERATURE = 0.7
-MAX_TOKENS = 512
-REPEAT_PENALTY = 1.1
-def agent(system: str, prompt: str, temp: float, max_tokens: int):
-    if args.agent == "gpt":
-        # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        response = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-            model="gpt-4-1106-preview",
-            temperature=temp,
-            max_tokens=max_tokens,
-        )
-        return response.choices[0].message.content
-    elif args.agent == "codellama":
-        # https://replicate.com/meta/codellama-70b-instruct
-        import replicate
-        output = replicate.run(
-            "meta/codellama-70b-instruct:a279116fe47a0f65701a8817188601e2fe8f4b9e04a518789655ea7b995851bf",
-            input={
-                "top_k": 10,
-                "top_p": 0.95,
-                "prompt": prompt,
-                "max_tokens": max_tokens,
-                "temperature": temp,
-                "system_prompt": system,
-                "repeat_penalty": REPEAT_PENALTY,
-            },
-        )
-        return output
-
 # Evolution rounds
 for round_num in range(args.num_rounds):
     logging.info(f"Round {round_num}")
@@ -132,10 +99,16 @@ for round_num in range(args.num_rounds):
         with open('morphs/base.ipynb', "r") as f:
             base = f.read()
         prompt += f"<notebook>\n{base}\n</notebook>"
-        reply = agent(prompt, protomorph_as_text, TEMPERATURE, MAX_TOKENS)
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": protomorph_as_text}
+            ]
+        )
+        reply = completion.choices[0].message.content
         with open(neomorph_filepath, "w") as f:
-            # HACK: removes first and last lines
-            f.write("\n".join(reply.split("\n")[1:-1]))
+            f.write(reply)
         morphs.append(Morph(0, neomorph))
 
     # ---- selection ----
