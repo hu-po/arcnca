@@ -80,8 +80,8 @@ for round_num in range(args.num_rounds):
         else:
             print(f"\t⏯️\tRunning {morph.name}")
         print("Killing stale Docker processes...")
-        subprocess.run(["docker", "kill", "$(docker ps -aq)"], shell=True)
-        subprocess.run(["docker", "rm", "$(docker ps -aq)"], shell=True)
+        subprocess.run("docker kill $(docker ps -aq)", shell=True)
+        subprocess.run("docker rm $(docker ps -aq)", shell=True)
         time.sleep(2)
         try:
             print("Setting up environment variables...")
@@ -102,7 +102,8 @@ for round_num in range(args.num_rounds):
             print(f"\t🏁\t{morph.name} scored {score}")
             export_prompt_filepath = os.path.join(PROMPT_DIR, "export.txt")
             prompt = load_prompt(export_prompt_filepath)
-            apply_prompt_to_morph(args.morph, prompt, f"export.{args.morph}")
+            apply_prompt_to_morph(morph, prompt, f"export.{morph.name}")
+            morph.state = ALREADY_RAN
         except Exception as e:
             print(f"\t❌\tError when running {morph.name}: {e}")
             continue

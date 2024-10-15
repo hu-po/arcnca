@@ -13,8 +13,8 @@ os.makedirs(MORPH_DIR, exist_ok=True)
 
 # morph states
 NOT_RUN_YET = 0
-ALREADY_RAN = 0
-ERRORED_OUT = -1
+ALREADY_RAN = -1
+ERRORED_OUT = -2
 
 @dataclass(order=True)
 class Morph:
@@ -28,7 +28,7 @@ def load_prompt(prompt_path):
         return f.read()
 
 def apply_prompt_to_morph(morph: Morph, prompt: str, new_morph_name: str) -> Morph:
-    morph_nb_filepath = os.path.join(MORPH_DIR, f"{morph}.ipynb")
+    morph_nb_filepath = os.path.join(MORPH_DIR, f"{morph.name}.ipynb")
     print(f"Reading notebook from {morph_nb_filepath}")
     with open(morph_nb_filepath, "r", encoding="utf-8") as f:
         notebook = nbformat.read(f, as_version=4)
