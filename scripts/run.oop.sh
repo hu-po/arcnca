@@ -8,4 +8,4 @@ docker run --gpus all -it --rm \
 -e WANDB_ENTITY="hug" \
 -e WANDB_PROJECT="arcnca" \
 nvcr.io/nvidia/jax:24.04-py3 \
-bash -c 'pip install jupyter && jupyter nbconvert --to notebook --execute /arcnca/morphs/\$MORPH.ipynb --stdout'
+bash -c "./arcnca/scripts/setup.\$COMPUTE_BACKEND.sh && jupyter nbconvert --to notebook --execute /arcnca/morphs/\$MORPH.ipynb --stdout"

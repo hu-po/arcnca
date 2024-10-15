@@ -8,4 +8,4 @@ jetson-containers run \
 -e WANDB_ENTITY="hug" \
 -e WANDB_PROJECT="arcnca" \
 $(autotag jax) \
-bash -c 'pip install jupyter flax && jupyter nbconvert --to notebook --execute /arcnca/morphs/\$MORPH.ipynb --stdout'
+bash -c "./arcnca/scripts/setup.\$COMPUTE_BACKEND.sh && jupyter nbconvert --to notebook --execute /arcnca/morphs/\$MORPH.ipynb --stdout"
