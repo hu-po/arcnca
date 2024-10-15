@@ -100,6 +100,7 @@ for round_num in range(args.num_rounds):
                 morph.state = ERRORED_OUT
                 continue
             morph_output_dir = os.path.join(OUTPUT_DIR, morph.name)
+            os.makedirs(morph_output_dir, exist_ok=True)
             morph_output_filepath = os.path.join(morph_output_dir, "results.json")
             with open(morph_output_filepath, "r") as f:
                 morph_output = yaml.safe_load(f)
