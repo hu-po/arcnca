@@ -41,6 +41,8 @@ for mutation_prompt in os.listdir(mutation_prompts_dir):
     mutation_prompts_filepaths.append(os.path.join(mutation_prompts_dir, mutation_prompt))
 
 # Evolution rounds
+session_id = str(uuid.uuid4())[:6]
+leaderboard_dir = os.path.join(OUTPUT_DIR, session_id)
 for round_num in range(args.num_rounds):
     print(f"Round {round_num}")
 
@@ -67,7 +69,7 @@ for round_num in range(args.num_rounds):
     # ---- selection ----
     print("Selection:")
     leaderboard = {}
-    leaderboard_filepath = os.path.join(OUTPUT_DIR, f"leaderboard.r{round_num}.yaml")
+    leaderboard_filepath = os.path.join(leaderboard_dir, f"leaderboard.r{round_num}.yaml")
     for morph in morphs:
         if morph.state == ALREADY_RAN:
             print(f"\t⏩\tSkipping {morph.name} with score {morph.score}")
@@ -90,13 +92,17 @@ for round_num in range(args.num_rounds):
                 print(f"\t❌\tError when running {morph.name}")
                 morph.state = ERRORED_OUT
                 continue
-            morph_output_filepath = os.path.join(OUTPUT_DIR, f"{morph.name}.yaml")
+            morph_output_dir = os.path.join(OUTPUT_DIR, morph.name)
+            morph_output_filepath = os.path.join(morph_output_dir, "results.json")
             with open(morph_output_filepath, "r") as f:
                 morph_output = yaml.safe_load(f)
-            score = morph_output["test_acc"]
+            score = morph_output["accuracy"]
             leaderboard[morph.name] = score
             morph.score = score
             print(f"\t🏁\t{morph.name} scored {score}")
+            export_prompt_filepath = os.path.join(PROMPT_DIR, "export.txt")
+            prompt = load_prompt(export_prompt_filepath)
+            apply_prompt_to_morph(args.morph, prompt, f"export.{args.morph}")
         except Exception as e:
             print(f"\t❌\tError when running {morph.name}: {e}")
             continue
