@@ -28,7 +28,7 @@ random.seed(args.seed)
 # Initialize morphs
 morphs: List[Morph] = []
 for protomorph in args.protomorphs.split(","):
-    if os.path.exists(os.path.join(MORPH_DIR, protomorph)):
+    if os.path.exists(os.path.join(MORPH_DIR, f"{protomorph}.ipynb")):
         morphs.append(Morph(0, protomorph))
 print("Morphs:")
 for morph in morphs:
@@ -42,7 +42,8 @@ for mutation_prompt in os.listdir(mutation_prompts_dir):
 
 # Evolution rounds
 session_id = str(uuid.uuid4())[:6]
-leaderboard_dir = os.path.join(OUTPUT_DIR, session_id)
+leaderboard_dir = os.path.join(OUTPUT_DIR, f"session.{session_id}")
+os.makedirs(leaderboard_dir, exist_ok=True)
 for round_num in range(args.num_rounds):
     print(f"Round {round_num}")
 
@@ -63,6 +64,12 @@ for round_num in range(args.num_rounds):
             print("Adding challenge prompt...")
             challenge_prompt_filepath = os.path.join(PROMPT_DIR, "challenge.txt")
             prompt += load_prompt(challenge_prompt_filepath)
+        # write prompt to output dir
+        neomorph_output_dir = os.path.join(OUTPUT_DIR, neomorph_name)
+        os.makedirs(neomorph_output_dir, exist_ok=True)
+        neomorph_prompt_filepath = os.path.join(neomorph_output_dir, "prompt.txt")
+        with open(neomorph_prompt_filepath, "w") as f:
+            f.write(prompt)
         neomorph = apply_prompt_to_morph(protomorph, prompt, neomorph_name)
         morphs.append(neomorph)
 

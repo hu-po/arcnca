@@ -43,8 +43,9 @@ def apply_prompt_to_morph(morph: Morph, prompt: str, new_morph_name: str) -> Mor
             {"role": "user", "content": content}
         ]
     )
+    reply = completion.choices[0].message.content
     new_notebook = nbformat.v4.new_notebook()
-    new_notebook.cells.append(nbformat.v4.new_code_cell(source=completion.choices[0].message.content))
+    new_notebook.cells.append(nbformat.v4.new_code_cell(source=reply))
     new_morph = Morph(0, new_morph_name)
     exported_nb_filepath = os.path.join(MORPH_DIR, f"{new_morph_name}.ipynb")
     with open(exported_nb_filepath, "w", encoding="utf-8") as f:

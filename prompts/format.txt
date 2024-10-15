@@ -1,1 +1,1 @@
-Respond with the full code without markdown or code block formatting matching the user input.
+Respond with the full code without markdown or code block formatting matching the user input. Remove any leading ```python and trailing ``` characters from the code block.
