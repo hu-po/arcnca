@@ -27,17 +27,19 @@ def load_prompt(prompt_path):
     with open(prompt_filepath, "r") as f:
         return f.read()
 
-def apply_prompt_to_morph(morph: Morph, prompt_filepath: str, new_morph_name: str) -> Morph:
+def apply_prompt_to_morph(morph: Morph, prompt: str, new_morph_name: str) -> Morph:
     morph_nb_filepath = os.path.join(MORPH_DIR, f"{morph}.ipynb")
     print(f"Reading notebook from {morph_nb_filepath}")
     with open(morph_nb_filepath, "r", encoding="utf-8") as f:
         notebook = nbformat.read(f, as_version=4)
     content = "\n\n".join(cell.source for cell in notebook.cells)
+    format_prompt_filepath = os.path.join(PROMPT_DIR, "format.txt")
+    prompt += load_prompt(format_prompt_filepath)
     client = OpenAI()
     completion = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": load_prompt(prompt_filepath)},
+            {"role": "system", "content": prompt},
             {"role": "user", "content": content}
         ]
     )

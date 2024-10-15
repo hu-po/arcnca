@@ -7,14 +7,14 @@ import uuid
 import yaml
 from typing import List
 
-from utils import Morph, ALREADY_RAN, ERRORED_OUT, MORPH_DIR, OUTPUT_DIR, PROMPT_DIR, apply_prompt_to_morph
+from utils import Morph, ALREADY_RAN, ERRORED_OUT, MORPH_DIR, OUTPUT_DIR, PROMPT_DIR, apply_prompt_to_morph, load_prompt
 
 # Argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=0)
 parser.add_argument("--agent", type=str, default="gpt")
 parser.add_argument("--tb", action="store_true", help="start tensorboard session")
-parser.add_argument("--protomorphs", type=str, help="comma separated list of protomorphs to seed evolution")
+parser.add_argument("--protomorphs", type=str, default="test", help="comma separated list of protomorphs to seed evolution")
 parser.add_argument("--num_rounds", type=int, default=2, help="number of rounds to run")
 parser.add_argument("--num_morphs", type=int, default=3, help="number of morphs per round")
 parser.add_argument("--topk_morphs", type=int, default=2, help="number of top morphs to keep each round")
@@ -27,12 +27,9 @@ random.seed(args.seed)
 
 # Initialize morphs
 morphs: List[Morph] = []
-if not args.protomorphs:
-    morphs.append(Morph(0, "conv"))
-else:
-    for protomorph in args.protomorphs.split(","):
-        if os.path.exists(os.path.join(MORPH_DIR, protomorph)):
-            morphs.append(Morph(0, protomorph))
+for protomorph in args.protomorphs.split(","):
+    if os.path.exists(os.path.join(MORPH_DIR, protomorph)):
+        morphs.append(Morph(0, protomorph))
 print("Morphs:")
 for morph in morphs:
     print(f"\t🧬\t{morph.name}")
@@ -53,7 +50,18 @@ for round_num in range(args.num_rounds):
         protomorph = random.choice(morphs) # TODO: weighted choice based on score
         neomorph_name = str(uuid.uuid4())[:6]
         print(f"\t🧬\t{protomorph.name} has spawned {neomorph_name}")
-        neomorph = apply_prompt_to_morph(protomorph, random.choice(mutation_prompts_filepaths), neomorph_name)
+        prompt = ""
+        if random.random() < 0.5:
+            print("Adding glazing prompt...")
+            glazing_prompt_filepath = os.path.join(PROMPT_DIR, "glazing.txt")
+            prompt += load_prompt(glazing_prompt_filepath)
+        mutation_prompt_filepath = random.choice(mutation_prompts_filepaths)
+        prompt += load_prompt(mutation_prompt_filepath)
+        if random.random() < 0.5:
+            print("Adding challenge prompt...")
+            challenge_prompt_filepath = os.path.join(PROMPT_DIR, "challenge.txt")
+            prompt += load_prompt(challenge_prompt_filepath)
+        neomorph = apply_prompt_to_morph(protomorph, prompt, neomorph_name)
         morphs.append(neomorph)
 
     # ---- selection ----
