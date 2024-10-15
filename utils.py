@@ -1,6 +1,8 @@
 import argparse
 import os
 from dataclasses import dataclass
+import subprocess
+import psutil
 
 import nbformat
 from openai import OpenAI
@@ -54,3 +56,66 @@ def apply_prompt_to_morph(morph: Morph, prompt_filepath: str, new_morph_name: st
         nbformat.write(new_notebook, f)
     print(f"New morph {new_morph.name}")
     return new_morph
+
+def get_device_memory():
+    used_mem_mb = None
+    total_mem_mb = None
+
+    # Try to get memory info using nvidia-smi
+    try:
+        result = subprocess.run(
+            ['nvidia-smi', '--query-gpu=memory.total,memory.used', '--format=csv,noheader,nounits'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        total_mem = used_mem = 0
+        for line in result.stdout.strip().split('\n'):
+            total, used = map(float, line.strip().split(', '))
+            total_mem += total
+            used_mem += used
+        return used_mem, total_mem
+    except Exception:
+        pass  # nvidia-smi not available
+
+    # Try to get memory info from JAX devices
+    try:
+        import jax
+        devices = jax.devices()
+        if devices:
+            total_mem = sum(device.memory_size() for device in devices)
+            total_mem_mb = total_mem / (1024 * 1024)  # Bytes to MB
+            # Used memory is not readily available via JAX
+            print(f"Total device memory: {total_mem_mb:.2f} MB")
+            return None, total_mem_mb
+    except Exception:
+        pass  # JAX not available or no devices found
+
+    # Try to get memory info using tegrastats (for AGX Orin devices)
+    try:
+        result = subprocess.run(
+            ['tegrastats', '--interval', '1', '--count', '1'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        output = result.stdout.strip()
+        # Parse tegrastats output if necessary
+        print("Tegrastats output:", output)
+        return None, None
+    except Exception:
+        pass  # tegrastats not available
+
+    # Fallback to system memory info using psutil
+    try:
+        mem = psutil.virtual_memory()
+        total_mem_mb = mem.total / (1024 * 1024)
+        used_mem_mb = mem.used / (1024 * 1024)
+        return used_mem_mb, total_mem_mb
+    except Exception:
+        pass  # psutil not available
+
+    print("Could not retrieve device memory usage.")
+    return None, None

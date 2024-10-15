@@ -65,3 +65,5 @@ python3 export.py --morph conv
 - https://github.com/maxencefaldor/cax/blob/main/examples/diffusing_nca.ipynb
 
 - https://cloud.lambdalabs.com/instances
+
+- https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.pad.html
