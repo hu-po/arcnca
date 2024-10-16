@@ -17,7 +17,16 @@ ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 MORPH_DIR = os.path.join(ROOT_DIR, "morphs")
 PROMPT_DIR = os.path.join(ROOT_DIR, "prompts")
+MUTATION_PROMPTS_DIR = os.path.join(PROMPT_DIR, "mutations")
 os.makedirs(MORPH_DIR, exist_ok=True)
+
+# choose which mutations are active
+MUTATIONS: List[str] = [
+    "open_ended",
+    "rewrite_model_and_train",
+    "rewrite_model",
+    "tune_config",
+]
 
 # morph states
 NOT_RUN_YET = 0
@@ -46,7 +55,7 @@ args = parser.parse_args()
 print(f"Seed: {args.seed}")
 random.seed(args.seed)
 
-def random_arxiv_abstract(num_terms: int = 3) -> str:
+def random_arxiv_abstract(num_terms: int = 2) -> str:
     query_filepath = os.path.join(PROMPT_DIR, "arxiv_query.txt")
     with open(query_filepath, "r") as f:
         terms = f.read().strip().split(',')
@@ -64,62 +73,64 @@ def load_prompt(prompt_path):
     with open(prompt_filepath, "r") as f:
         return f.read()
 
-def apply_prompt_to_morph(morph: Morph, prompt: str, new_morph_name: str) -> Morph:
+def morph_nb_prompt(morph: Morph):
     morph_nb_filepath = os.path.join(MORPH_DIR, f"{morph.name}.ipynb")
-    print(f"Reading notebook from {morph_nb_filepath}")
     with open(morph_nb_filepath, "r", encoding="utf-8") as f:
         notebook = nbformat.read(f, as_version=4)
-    content = "\n\n".join(cell.source for cell in notebook.cells)
-    format_prompt_filepath = os.path.join(PROMPT_DIR, "format.txt")
-    prompt += load_prompt(format_prompt_filepath)
+    return "\n".join(cell.source for cell in notebook.cells)
+
+def morphesis(name: str, system: str, prompt: str) -> Morph:
     client = OpenAI()
     completion = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": content}
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt}
         ]
     )
     reply = completion.choices[0].message.content
-    new_notebook = nbformat.v4.new_notebook()
-    new_notebook.cells.append(nbformat.v4.new_code_cell(source=reply))
-    new_morph = Morph(0, new_morph_name)
-    exported_nb_filepath = os.path.join(MORPH_DIR, f"{new_morph_name}.ipynb")
-    with open(exported_nb_filepath, "w", encoding="utf-8") as f:
-        nbformat.write(new_notebook, f)
-    print(f"New morph {new_morph.name}")
-    return new_morph
+    nb = nbformat.v4.new_notebook()
+    nb.cells.append(nbformat.v4.new_code_cell(source=reply))
+    morph = Morph(0, name)
+    print(f"\t🥚\t welcome ~{name}~")
+    nb_filepath = os.path.join(MORPH_DIR, f"{name}.ipynb")
+    with open(nb_filepath, "w", encoding="utf-8") as f:
+        nbformat.write(nb, f)
+    return morph
 
-def export(morph: Morph):
+def export(morph: Morph) -> Morph:
     export_prompt_filepath = os.path.join(PROMPT_DIR, "export.txt")
-    prompt = load_prompt(export_prompt_filepath)
-    apply_prompt_to_morph(morph, prompt, f"export.{morph.name}")
+    export_prompt = load_prompt(export_prompt_filepath)
+    prompt = morph_nb_prompt(morph)
+    return morphesis(f"export.{morph.name}", export_prompt, prompt)
 
-def mutate(protomorph: Morph) -> Morph:
+def mutate(protomorph: Morph, mutation_prompt_filename: str) -> Morph:
+    print("\t 🧫 mutating...")
     neomorph_name = str(uuid.uuid4())[:6]
-    print(f"\t🥚\t~{neomorph_name}~ is born")
-    print(f"\t🧬\t spawn of {protomorph.name}")
-    prompt = ""
+    neomorph_output_dir = os.path.join(OUTPUT_DIR, neomorph_name)
+    os.makedirs(neomorph_output_dir, exist_ok=True)
+    mutation_prompt_filepath = os.path.join(MUTATION_PROMPTS_DIR, f"{mutation_prompt_filename}.txt")
+    system = load_prompt(mutation_prompt_filepath)
     if random.random() < 0.5:
         print("\t 🍯 adding glazing prompt...")
         glazing_prompt_filepath = os.path.join(PROMPT_DIR, "glazing.txt")
-        prompt += load_prompt(glazing_prompt_filepath)
+        system += f"\n{load_prompt(glazing_prompt_filepath)}"
     if random.random() < 0.5:
         print("\t 📚 adding arxiv prompt...")
-        prompt += random_arxiv_abstract()
-    mutation_prompt_filepath = random.choice(mutation_prompts_filepaths)
-    prompt += load_prompt(mutation_prompt_filepath)
+        system += f"\n{random_arxiv_abstract()}"
     if random.random() < 0.5:
         print("\t 📋 adding challenge prompt...")
         challenge_prompt_filepath = os.path.join(PROMPT_DIR, "challenge.txt")
-        prompt += load_prompt(challenge_prompt_filepath)
+        system += f"\n{load_prompt(challenge_prompt_filepath)}"
+    format_prompt_filepath = os.path.join(PROMPT_DIR, "format.txt")
+    system += f"\n{load_prompt(format_prompt_filepath)}"
+    print(f"\t 👵 parent: ~{protomorph.name}~")
+    prompt = morph_nb_prompt(protomorph)
     # write prompt to output dir
-    neomorph_output_dir = os.path.join(OUTPUT_DIR, neomorph_name)
-    os.makedirs(neomorph_output_dir, exist_ok=True)
     neomorph_prompt_filepath = os.path.join(neomorph_output_dir, "prompt.txt")
     with open(neomorph_prompt_filepath, "w") as f:
-        f.write(prompt)
-    neomorph = apply_prompt_to_morph(protomorph, prompt, neomorph_name)
+        f.write(f"SYSTEM:\n{system}\n\nPROMPT:\n{prompt}")
+    neomorph = morphesis(system, prompt, neomorph_name)
     return neomorph
 
 if __name__ == "__main__":
@@ -131,7 +142,7 @@ if __name__ == "__main__":
             morphs.append(Morph(0, protomorph))
     print("Morphs:")
     for morph in morphs:
-        print(f"\t🧬\t{morph.name}")
+        print(f"\t🧬\t~{morph.name}~")
 
     # list all files in mutation dir
     mutation_prompts_dir = os.path.join(PROMPT_DIR, "mutations")
@@ -147,14 +158,14 @@ if __name__ == "__main__":
         print(f"Round {round_num}")
 
         # ---- mutation ----
-        print("Mutation:")
+        print("mutating until full morphs...")
         while len(morphs) < args.num_morphs:
-            protomorph = random.choice(morphs) # TODO: weighted choice based on score
-            neomorph = mutate(protomorph)
+            protomorph = random.choice(morphs)
+            neomorph = mutate(protomorph, random.choice(MUTATIONS))
             morphs.append(neomorph)
 
         # ---- selection ----
-        print("Selection:")
+        print("running morphs...")
         leaderboard = {}
         leaderboard_filepath = os.path.join(leaderboard_dir, f"leaderboard.r{round_num}.yaml")
         for morph in morphs:
@@ -188,8 +199,8 @@ if __name__ == "__main__":
                 leaderboard[morph.name] = score
                 morph.score = score
                 print(f"\t🏁\t{morph.name} scored {score}")
-                export(morph)
                 morph.state = ALREADY_RAN
+                export(morph)
             except Exception as e:
                 print(f"\t❌\tError when running {morph.name}: {e}")
                 continue
