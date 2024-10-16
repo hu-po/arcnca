@@ -3,7 +3,7 @@ jetson-containers run \
 -v /home/$USER/dev/arcnca/data:/kaggle/input/arc-prize-2024 \
 -v /home/$USER/dev/arcnca/output:/kaggle/working \
 -e COMPUTE_BACKEND="ojo" \
--e MORPH="test" \
+-e MORPH="test_data" \
 -e WANDB_API_KEY=$WANDB_API_KEY \
 -e WANDB_ENTITY="hug" \
 -e WANDB_PROJECT="arcnca" \
