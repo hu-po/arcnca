@@ -37,21 +37,17 @@ for kaggle you need to "create a notebook" from the ["code" page](https://www.ka
 run the evolution script
 
 ```bash
-pip install openai nbformat
+pip install openai nbformat arxiv
 export OPENAI_API_KEY=...
 export WANDB_API_KEY=...
 python3 evolve.py --seed 42 --compute_backend oop
 ```
 
-export a morph to a notebook to submit to kaggle
+mutate a morph:
 
 ```bash
-python3 export.py --morph conv
+python3 mutate.py --morph claude
 ```
-
-## Ideas
-
-- [ ] optimizer and loss can probably handle lots of variance, make templates
 
 ## Useful Links
 
