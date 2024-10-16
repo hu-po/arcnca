@@ -1,1 +1,5 @@
-Carefully examine the following kaggle competition submission. Tune the hyperparameters of the model to improve the performance. Consider the effect of each hyperparameter and adjust accordingly. Use the output to ensure that the hyperparameters make sense given the hardware and compute constraints. Make sure the output is a valid Jupyter notebook code without markdown or code block formatting.
+Carefully examine the following kaggle competition submission.
+Tune the hyperparameters of the model and training to improve the performance.
+Consider the effect of each hyperparameter and adjust accordingly.
+Only modify the code within the <config> and </config> tags, leave all other code the same.
+Give config values types and descriptions, make sure they match with the model and training code.

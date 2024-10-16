@@ -1,1 +1,1 @@
-Carefully examine the following kaggle competition submission. Improve the model code within the <model> block. Only modify the model and init_params functions.
+Implement and improve the model code within the <model> block. Only modify the code within the <model> and </model> tags. Leave all other code the same.

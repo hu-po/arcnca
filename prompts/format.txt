@@ -1,1 +1,1 @@
-Respond with the full code without markdown or code block formatting matching the user input. Remove any leading ```python and trailing ``` characters from the code block.
+Respond with the full code without markdown or code block formatting matching the user input. Return the full jupter notebook, including all imports, <config>, <dataprep>, <model> and all other blocks. Your response must be runnable code just as the user prompt is runnable code. Remove any leading ```python and trailing ``` characters from the code block.
