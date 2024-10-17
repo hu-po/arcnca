@@ -70,20 +70,32 @@ def random_arxiv_abstract(num_terms: int = 2) -> str:
         sort_by=arxiv.SortCriterion.SubmittedDate
     )
     paper = random.choice(list(search_results.results()))
-    return f"this paper from arxiv contains a helpful hint:\n{paper.title}\n{paper.summary}"
+    return f"This paper from arxiv contains a helpful hint:\n\n{paper.title}\n\n{paper.summary}"
 
 def load_prompt(prompt_path):
     prompt_filepath = os.path.join(PROMPT_DIR, prompt_path)
     with open(prompt_filepath, "r") as f:
         return f.read()
 
-def morph_nb_prompt(morph: Morph):
+def morph_to_prompt(morph: Morph) -> str:
     morph_nb_filepath = os.path.join(MORPH_DIR, f"{morph.name}.ipynb")
     with open(morph_nb_filepath, "r", encoding="utf-8") as f:
         notebook = nbformat.read(f, as_version=4)
     return "\n".join(cell.source for cell in notebook.cells)
 
-def morphesis(name: str, system: str, prompt: str, output_dir: str = MORPH_DIR, agent: str = DEFAULT_AGENT) -> Morph:
+def reply_to_morph(reply: str, name:str, output_dir: str) -> Morph:
+    # remove leading ```python and trailing trailing ```
+    reply = re.sub(r'^```python\s*', '', reply, flags=re.MULTILINE)
+    reply = re.sub(r'^```\s*', '', reply, flags=re.MULTILINE)
+    nb = nbformat.v4.new_notebook()
+    nb.cells.append(nbformat.v4.new_code_cell(source=reply))
+    morph = Morph(0, name)
+    nb_filepath = os.path.join(output_dir, f"{name}.ipynb")
+    with open(nb_filepath, "w", encoding="utf-8") as f:
+        nbformat.write(nb, f)
+    return morph
+
+def run_agent(system: str, prompt: str, agent: str = DEFAULT_AGENT):
     print(f"\t🧠 calling {agent}...")
     if agent in ["gpt-4o"]: # TODO
         client = OpenAI()
@@ -95,57 +107,50 @@ def morphesis(name: str, system: str, prompt: str, output_dir: str = MORPH_DIR, 
             ]
         )
         reply = completion.choices[0].message.content
-        # remove leading ```python and trailing trailing ```
-        reply = re.sub(r'^```python\s*', '', reply, flags=re.MULTILINE)
-        reply = re.sub(r'^```\s*', '', reply, flags=re.MULTILINE)
     elif agent in ["sonnet3.5"]:
         pass # TODO
     else:
         raise ValueError(f"Unknown agent: {agent}")
     print("\t... completed")
-    nb = nbformat.v4.new_notebook()
-    nb.cells.append(nbformat.v4.new_code_cell(source=reply))
-    morph = Morph(0, name)
-    print(f"\t🥚\t welcome ~{name}~")
-    nb_filepath = os.path.join(output_dir, f"{name}.ipynb")
-    with open(nb_filepath, "w", encoding="utf-8") as f:
-        nbformat.write(nb, f)
-    return morph
+    return reply
 
-def export(morph: Morph) -> Morph:
+def export(morph: Morph):
     export_prompt_filepath = os.path.join(PROMPT_DIR, "export.txt")
     export_prompt = load_prompt(export_prompt_filepath)
-    prompt = morph_nb_prompt(morph)
+    prompt = morph_to_prompt(morph)
+    reply = run_agent(export_prompt, prompt)
     export_dir = os.path.join(OUTPUT_DIR, morph.name)
-    return morphesis(f"export.{morph.name}", export_prompt, prompt, output_dir=export_dir)
+    reply_to_morph(reply, f"export.{morph.name}", export_dir)
+
 
 def mutate(protomorph: Morph, mutation_prompt_filename: str) -> Morph:
     print("🧫 mutating...")
-    neomorph_name = str(uuid.uuid4())[:6]
-    neomorph_output_dir = os.path.join(OUTPUT_DIR, neomorph_name)
-    os.makedirs(neomorph_output_dir, exist_ok=True)
+    print(f"\t👵 ancestor ~{protomorph.name}~")
     mutation_prompt_filepath = os.path.join(MUTATION_PROMPTS_DIR, f"{mutation_prompt_filename}.txt")
     system = load_prompt(mutation_prompt_filepath)
     format_prompt_filepath = os.path.join(PROMPT_DIR, "format.txt")
     system += f"\n{load_prompt(format_prompt_filepath)}"
     if random.random() < 0.5:
-        print("\t🍯 adding glazing prompt...")
+        print("\t\t🍯 adding glazing prompt...")
         glazing_prompt_filepath = os.path.join(PROMPT_DIR, "glazing.txt")
-        system += f"\n{load_prompt(glazing_prompt_filepath)}"
+        system += f"\n\n{load_prompt(glazing_prompt_filepath)}"
     if random.random() < 0.8:
-        print("\t📚 adding arxiv prompt...")
-        system += f"\n{random_arxiv_abstract()}"
+        print("\t\t📚 adding arxiv prompt...")
+        system += f"\n\n{random_arxiv_abstract()}"
     if random.random() < 0.1:
-        print("\t📋 adding challenge prompt...")
+        print("\t\t📋 adding challenge prompt...")
         challenge_prompt_filepath = os.path.join(PROMPT_DIR, "challenge.txt")
-        system += f"\n{load_prompt(challenge_prompt_filepath)}"
-    print(f"\t👵 parent: ~{protomorph.name}~")
-    prompt = morph_nb_prompt(protomorph)
-    # write prompt to output dir
+        system += f"\n\n{load_prompt(challenge_prompt_filepath)}"
+    prompt = morph_to_prompt(protomorph)
+    neomorph_name = str(uuid.uuid4())[:6]
+    neomorph_output_dir = os.path.join(OUTPUT_DIR, neomorph_name)
+    os.makedirs(neomorph_output_dir, exist_ok=True)
     neomorph_prompt_filepath = os.path.join(neomorph_output_dir, "prompt.txt")
     with open(neomorph_prompt_filepath, "w") as f:
         f.write(f"SYSTEM:\n{system}\n\nPROMPT:\n{prompt}")
-    neomorph = morphesis(neomorph_name, system, prompt)
+    reply = run_agent(system, prompt)
+    neomorph = reply_to_morph(reply, neomorph_name, MORPH_DIR)
+    print(f"\t🥚 welcome ~{neomorph_name}~")
     return neomorph
 
 if __name__ == "__main__":

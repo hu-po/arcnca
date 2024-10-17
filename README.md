@@ -23,7 +23,7 @@ use the minimal `morphs/test.ipynb` notebook to run tests on a machine. first ss
 
 ```bash
 git clone https://github.com/hu-po/arcnca
-./scripts/test.big.sh
+./scripts/test.sh oop test
 ```
 
 the test notebook installs necessary packages, runs `cax` tests, downloads the data, performs dummy jax compute, and saves results to file.

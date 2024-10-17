@@ -1,3 +1,3 @@
-echo "Setting up OOP environment"
+echo "Setting up big environment"
 pip install jupyter
 pip install wandb
