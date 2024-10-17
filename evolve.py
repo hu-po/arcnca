@@ -2,6 +2,7 @@ import argparse
 from dataclasses import dataclass
 import os
 import random
+import re
 import subprocess
 import time
 import uuid
@@ -27,6 +28,9 @@ MUTATIONS: List[str] = [
     "rewrite_model",
     "tune_config",
 ]
+
+# agent is used for mutations
+DEFAULT_AGENT = "gpt-4o"
 
 # morph states
 NOT_RUN_YET = 0
@@ -79,16 +83,26 @@ def morph_nb_prompt(morph: Morph):
         notebook = nbformat.read(f, as_version=4)
     return "\n".join(cell.source for cell in notebook.cells)
 
-def morphesis(name: str, system: str, prompt: str, output_dir:str = MORPH_DIR) -> Morph:
-    client = OpenAI()
-    completion = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt}
-        ]
-    )
-    reply = completion.choices[0].message.content
+def morphesis(name: str, system: str, prompt: str, output_dir: str = MORPH_DIR, agent: str = DEFAULT_AGENT) -> Morph:
+    print(f"\t🧠 calling {agent}...")
+    if agent in ["gpt-4o"]: # TODO
+        client = OpenAI()
+        completion = client.chat.completions.create(
+            model=agent,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        reply = completion.choices[0].message.content
+        # remove leading ```python and trailing trailing ```
+        reply = re.sub(r'^```python\s*', '', reply, flags=re.MULTILINE)
+        reply = re.sub(r'^```\s*', '', reply, flags=re.MULTILINE)
+    elif agent in ["sonnet3.5"]:
+        pass # TODO
+    else:
+        raise ValueError(f"Unknown agent: {agent}")
+    print("\t... completed")
     nb = nbformat.v4.new_notebook()
     nb.cells.append(nbformat.v4.new_code_cell(source=reply))
     morph = Morph(0, name)
@@ -106,26 +120,26 @@ def export(morph: Morph) -> Morph:
     return morphesis(f"export.{morph.name}", export_prompt, prompt, output_dir=export_dir)
 
 def mutate(protomorph: Morph, mutation_prompt_filename: str) -> Morph:
-    print("\t 🧫 mutating...")
+    print("🧫 mutating...")
     neomorph_name = str(uuid.uuid4())[:6]
     neomorph_output_dir = os.path.join(OUTPUT_DIR, neomorph_name)
     os.makedirs(neomorph_output_dir, exist_ok=True)
     mutation_prompt_filepath = os.path.join(MUTATION_PROMPTS_DIR, f"{mutation_prompt_filename}.txt")
     system = load_prompt(mutation_prompt_filepath)
-    if random.random() < 0.5:
-        print("\t 🍯 adding glazing prompt...")
-        glazing_prompt_filepath = os.path.join(PROMPT_DIR, "glazing.txt")
-        system += f"\n{load_prompt(glazing_prompt_filepath)}"
-    if random.random() < 0.5:
-        print("\t 📚 adding arxiv prompt...")
-        system += f"\n{random_arxiv_abstract()}"
-    if random.random() < 0.5:
-        print("\t 📋 adding challenge prompt...")
-        challenge_prompt_filepath = os.path.join(PROMPT_DIR, "challenge.txt")
-        system += f"\n{load_prompt(challenge_prompt_filepath)}"
     format_prompt_filepath = os.path.join(PROMPT_DIR, "format.txt")
     system += f"\n{load_prompt(format_prompt_filepath)}"
-    print(f"\t 👵 parent: ~{protomorph.name}~")
+    if random.random() < 0.5:
+        print("\t🍯 adding glazing prompt...")
+        glazing_prompt_filepath = os.path.join(PROMPT_DIR, "glazing.txt")
+        system += f"\n{load_prompt(glazing_prompt_filepath)}"
+    if random.random() < 0.8:
+        print("\t📚 adding arxiv prompt...")
+        system += f"\n{random_arxiv_abstract()}"
+    if random.random() < 0.1:
+        print("\t📋 adding challenge prompt...")
+        challenge_prompt_filepath = os.path.join(PROMPT_DIR, "challenge.txt")
+        system += f"\n{load_prompt(challenge_prompt_filepath)}"
+    print(f"\t👵 parent: ~{protomorph.name}~")
     prompt = morph_nb_prompt(protomorph)
     # write prompt to output dir
     neomorph_prompt_filepath = os.path.join(neomorph_output_dir, "prompt.txt")
@@ -135,38 +149,27 @@ def mutate(protomorph: Morph, mutation_prompt_filename: str) -> Morph:
     return neomorph
 
 if __name__ == "__main__":
-
-    # Initialize morphs
     morphs: List[Morph] = []
     for protomorph in args.protomorphs.split(","):
         if os.path.exists(os.path.join(MORPH_DIR, f"{protomorph}.ipynb")):
             morphs.append(Morph(0, protomorph))
-    print("Morphs:")
+    print("protomorphs:")
     for morph in morphs:
         print(f"\t🧬\t~{morph.name}~")
-
-    # list all files in mutation dir
-    mutation_prompts_dir = os.path.join(PROMPT_DIR, "mutations")
-    mutation_prompts_filepaths = []
-    for mutation_prompt in os.listdir(mutation_prompts_dir):
-        mutation_prompts_filepaths.append(os.path.join(mutation_prompts_dir, mutation_prompt))
-
-    # Evolution rounds
     session_id = str(uuid.uuid4())[:6]
     leaderboard_dir = os.path.join(OUTPUT_DIR, f"session.{session_id}")
     os.makedirs(leaderboard_dir, exist_ok=True)
     for round_num in range(args.num_rounds):
-        print(f"Round {round_num}")
-
-        # ---- mutation ----
-        print("mutating until full morphs...")
+        print(f"🥊 round {round_num}")
+        print("\t mutating until full morphs...")
         while len(morphs) < args.num_morphs:
             protomorph = random.choice(morphs)
             neomorph = mutate(protomorph, random.choice(MUTATIONS))
             morphs.append(neomorph)
-
-        # ---- selection ----
-        print("running morphs...")
+        print("\t morphs:")
+        for morph in morphs:
+            print(f"\t🧬\t~{morph.name}~")
+        print("\t running morphs...")
         leaderboard = {}
         leaderboard_filepath = os.path.join(leaderboard_dir, f"leaderboard.r{round_num}.yaml")
         for morph in morphs:
