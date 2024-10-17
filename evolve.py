@@ -131,7 +131,7 @@ def mutate(protomorph: Morph, mutation_prompt_filename: str) -> Morph:
     neomorph_prompt_filepath = os.path.join(neomorph_output_dir, "prompt.txt")
     with open(neomorph_prompt_filepath, "w") as f:
         f.write(f"SYSTEM:\n{system}\n\nPROMPT:\n{prompt}")
-    neomorph = morphesis(system, prompt, neomorph_name)
+    neomorph = morphesis(neomorph_name, system, prompt)
     return neomorph
 
 if __name__ == "__main__":
