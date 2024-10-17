@@ -79,7 +79,7 @@ def morph_nb_prompt(morph: Morph):
         notebook = nbformat.read(f, as_version=4)
     return "\n".join(cell.source for cell in notebook.cells)
 
-def morphesis(name: str, system: str, prompt: str) -> Morph:
+def morphesis(name: str, system: str, prompt: str, output_dir:str = MORPH_DIR) -> Morph:
     client = OpenAI()
     completion = client.chat.completions.create(
         model="gpt-4o",
@@ -93,7 +93,7 @@ def morphesis(name: str, system: str, prompt: str) -> Morph:
     nb.cells.append(nbformat.v4.new_code_cell(source=reply))
     morph = Morph(0, name)
     print(f"\t🥚\t welcome ~{name}~")
-    nb_filepath = os.path.join(MORPH_DIR, f"{name}.ipynb")
+    nb_filepath = os.path.join(output_dir, f"{name}.ipynb")
     with open(nb_filepath, "w", encoding="utf-8") as f:
         nbformat.write(nb, f)
     return morph
@@ -102,7 +102,8 @@ def export(morph: Morph) -> Morph:
     export_prompt_filepath = os.path.join(PROMPT_DIR, "export.txt")
     export_prompt = load_prompt(export_prompt_filepath)
     prompt = morph_nb_prompt(morph)
-    return morphesis(f"export.{morph.name}", export_prompt, prompt)
+    export_dir = os.path.join(OUTPUT_DIR, morph.name)
+    return morphesis(f"export.{morph.name}", export_prompt, prompt, output_dir=export_dir)
 
 def mutate(protomorph: Morph, mutation_prompt_filename: str) -> Morph:
     print("\t 🧫 mutating...")
