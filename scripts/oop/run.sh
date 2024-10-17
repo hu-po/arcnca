@@ -6,4 +6,4 @@ docker run --gpus all -it --rm \
 -e MORPH=$1 \
 -e WANDB_API_KEY=$WANDB_API_KEY \
 nvcr.io/nvidia/jax:24.04-py3 \
-bash -c "./arcnca/scripts/.\$COMPUTE_BACKEND/setup.sh && jupyter nbconvert --to notebook --execute /arcnca/morphs/\$MORPH.ipynb --stdout"
+bash -c "./arcnca/scripts/\$COMPUTE_BACKEND/setup.sh && jupyter nbconvert --to notebook --execute /arcnca/morphs/\$MORPH.ipynb --stdout"

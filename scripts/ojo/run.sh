@@ -6,4 +6,4 @@ jetson-containers run \
 -e MORPH=$1 \
 -e WANDB_API_KEY=$WANDB_API_KEY \
 $(autotag jax) \
-bash -c "./arcnca/scripts/.\$COMPUTE_BACKEND/setup.sh && jupyter nbconvert --to notebook --execute /arcnca/morphs/\$MORPH.ipynb --stdout"
+bash -c "./arcnca/scripts/\$COMPUTE_BACKEND/setup.sh && jupyter nbconvert --to notebook --execute /arcnca/morphs/\$MORPH.ipynb --stdout"

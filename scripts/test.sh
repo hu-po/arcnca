@@ -5,4 +5,5 @@ if [ -z "$1" ] || [ -z "$2" ]; then
 fi
 COMPUTE_BACKEND=$1
 MORPH=$2
-bash $COMPUTE_BACKEND/run.sh $MORPH
+SCRIPT_DIR=$(dirname $(realpath $0))
+bash $SCRIPT_DIR/$COMPUTE_BACKEND/run.sh $MORPH
